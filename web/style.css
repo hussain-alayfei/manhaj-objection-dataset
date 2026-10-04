@@ -101,10 +101,13 @@ main>header #breadcrumb{color:var(--ink)}
 .metric small{font-size:12.5px}
 
 /* The illuminated panel */
-.hero{background:linear-gradient(to left,var(--green-deep) 0,var(--green-deep) 50%,#06392a00 78%),url(/static/img/girih-banner.webp) left center/auto 100% no-repeat,var(--green-deep);color:#fff;border-radius:var(--radius);overflow:hidden;padding:34px 38px;margin-bottom:26px;min-height:220px}
-.hero h3{font-size:27px;margin-bottom:6px;max-width:24ch}
-.hero p{color:#dce8e1;max-width:54ch;font-size:14.5px}
-.steps{display:flex;flex-wrap:wrap;gap:8px 10px;margin:20px 0 0;padding:0;list-style:none;counter-reset:step;max-width:62%}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) clamp(110px,30%,340px);grid-template-rows:auto auto 1fr;background:var(--green-deep);color:#fff;border-radius:var(--radius);overflow:hidden;margin-bottom:26px;min-height:220px}
+.hero>*{grid-column:1;padding-inline:36px 28px}
+.hero>h3{font-size:27px;margin:0;padding-top:30px;padding-bottom:6px}
+.hero>p{color:#dce8e1;font-size:14.5px;max-width:64ch}
+/* The illumination sits in its own column, fading toward the text, so it never runs under words */
+.hero::after{content:"";grid-column:2;grid-row:1/-1;background:url(/static/img/girih-banner.webp) left center/cover no-repeat;-webkit-mask-image:linear-gradient(to right,#000 55%,transparent);mask-image:linear-gradient(to right,#000 55%,transparent)}
+.steps{display:flex;flex-wrap:wrap;gap:8px 10px;margin:18px 0 0;padding-top:0;padding-bottom:30px;list-style:none;counter-reset:step}
 .steps li{counter-increment:step;background:#ffffff14;border:1px solid #ffffff2e;border-radius:8px;padding:5px 12px;font-size:13.5px}
 .steps li::before{content:counter(step) "- ";color:#e7cf9f;font-variant-numeric:tabular-nums}
 
@@ -243,7 +246,7 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after,::backdrop{animation:none!important;transition:none!important}}
 
 /* Responsive */
-@media(max-width:1100px){main{padding:0 24px 40px;margin-right:222px}.sidebar{width:222px}.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.metric:nth-child(3){border-right:0}.metric:nth-child(n+3){border-top:1px solid var(--line)}.steps{max-width:none}}
+@media(max-width:1100px){main{padding:0 24px 40px;margin-right:222px}.sidebar{width:222px}.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.metric:nth-child(3){border-right:0}.metric:nth-child(n+3){border-top:1px solid var(--line)}}
 @media(max-width:760px){
   .sidebar{position:static;width:auto;padding:12px 14px 8px;border-left:0;border-bottom:1px solid var(--line)}
   .brand{padding:0 0 10px;margin-bottom:8px}
@@ -264,8 +267,9 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
   .book-bar h3{display:none}
   .book-stage{padding:8px}
   .metric strong{font-size:30px}
-  .hero{padding:24px;background:linear-gradient(to left,var(--green-deep) 0,var(--green-deep) 60%,#06392a66 100%),url(/static/img/girih-banner.webp) left center/auto 100% no-repeat,var(--green-deep)}
-  .hero h3{font-size:23px}
+  .hero{grid-template-columns:minmax(0,1fr) 56px}
+  .hero>*{padding-inline:20px 14px}
+  .hero>h3{font-size:23px;padding-top:22px}
   .page-title{align-items:start;flex-direction:column}
   h2{font-size:26px}
   .toolbar{flex-wrap:wrap}
