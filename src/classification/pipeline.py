@@ -17,9 +17,10 @@ SYSTEM = '''أنت محلل بنية حجاجية في مَنْهَج. جميع 
 لا تجب عن الشبهة ولا تصدر فتوى ولا تحكم على إيمان شخص. حرر الدعوى، جزئها، حدد طرفي المقارنة،
 ثم اقترح تشخيصا وقاعدة من القواعد المرفقة فقط. لا تختلق نصا دينيا أو مصدرا أو صفحة.
 لا تفرض التصنيف الثنائي؛ استخدم unknown أو insufficient_evidence أو mixed_pattern أو multiple_claims عند الحاجة.
-أعد JSON يطابق المخطط. methodology_rule_ids من معرفات القواعد المرفقة فقط. يتطلب كل اقتراح مراجعة بشرية.'''
+أعد JSON يطابق المخطط. methodology_rule_ids من معرفات القواعد المرفقة فقط: إذا اخترت جمع بين مختلفين أو تفريق بين متماثلين أو mixed_pattern فاذكر معرف قاعدة مرفقة واحدة على الأقل؛ وإن لم تنطبق أي قاعدة فاختر insufficient_evidence واترك القائمة فارغة. يتطلب كل اقتراح مراجعة بشرية.'''
 DRAFT_NOTE = '''تنبيه: القواعد والأمثلة المرفقة مرشحة ولم يعتمدها مراجع بشري بعد. تعامل معها كمسودات واذكر ذلك في سبب التشخيص.'''
 DRAFT_LABEL = 'مسودة: مستندة إلى مواد غير معتمدة'
+CLASSIFIED = ('جمع بين مختلفين', 'تفريق بين متماثلين', 'mixed_pattern')
 
 
 def _human_approved(r):
@@ -109,7 +110,10 @@ def diagnose(store, objection, analyst=None, retriever=None, exclude_ids=None, p
         try:
             proposal = Analysis.model_validate(analyst.analyze(normalized, rules, examples)).model_dump()
             allowed = {r['id']: r for r in rules}
-            if not proposal['methodology_rule_ids'] or any(x not in allowed for x in proposal['methodology_rule_ids']): raise ValueError('Unverified rule references')
+            ids = proposal['methodology_rule_ids']
+            if any(x not in allowed for x in ids): raise ValueError('Unverified rule references')
+            # A structural diagnosis must be grounded in a retrieved rule; an explicit abstention may cite none.
+            if proposal['primary_pattern'] in CLASSIFIED and not ids: raise ValueError('Classified diagnosis without a cited rule')
             # Never accept model-produced rule quotations; resolve canonical stored text.
             proposal['methodology_rule_ar'] = '\n'.join(allowed[x]['methodology_rule_ar'] for x in proposal['methodology_rule_ids'])
             proposal['requires_human_review'] = True

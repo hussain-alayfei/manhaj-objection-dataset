@@ -150,3 +150,12 @@ def test_openai_extractor_converts_strict_batch(monkeypatch):
     responses = FakeResponses(ExtractionBatchStrict.model_validate({'items': [item]}))
     batch = OpenAISourceExtractor(client=SimpleNamespace(responses=responses)).extract('نص')
     assert batch.items[0].analysis.methodology_rule_ar == '' and responses.calls[0]['store'] is False
+
+
+def test_abstention_without_rule_is_kept_but_classification_needs_one(store, monkeypatch):
+    store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
+    analyst, _ = openai_analyst(monkeypatch, proposal(primary_pattern='insufficient_evidence', sub_patterns=[], methodology_rule_ids=[], diagnostic_reason_ar='الدعوى غير محددة'))
+    kept = diagnose(store, 'تفاحتين', analyst=analyst)
+    assert kept['abstention_reason'] is None and kept['analysis']['diagnostic_reason_ar'] == 'الدعوى غير محددة' and kept['source_evidence'] == []
+    analyst, _ = openai_analyst(monkeypatch, proposal(methodology_rule_ids=[]))
+    assert diagnose(store, 'تفاحتين', analyst=analyst)['abstention_reason'] == 'model_or_grounding_validation_failed'

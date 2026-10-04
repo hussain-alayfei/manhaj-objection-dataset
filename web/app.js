@@ -119,11 +119,11 @@ document.addEventListener('submit',async e=>{
  $('#editor').close();notify('حُفظت المراجعة مع سجل الإصدار.');await render();
  }
  if(id==='ingest-form'){const form=new FormData();form.append('file',$('#pdf-file').files[0]);form.append('title',$('#pdf-title').value);form.append('author',$('#pdf-author').value);form.append('profile',$('#pdf-profile').value);notify('يجري استخراج الصفحات. قد يستغرق ذلك عدة دقائق.');const r=await api('/ingest',{method:'POST',body:form});notify('سجلات مرشحة جديدة: '+r.candidate_count);await render();}
- if(id==='diagnose-form'){const r=await api('/diagnose',{method:'POST',body:{text:$('#diagnose-text').value,include_drafts:$('#diagnose-drafts').checked}});$('#diagnosis-result').innerHTML=diagnosisHtml(r);}
+ if(id==='diagnose-form'){$('#diagnosis-result').innerHTML='<div class="banner" role="status">جارٍ تحليل البنية واسترجاع القواعد… قد يستغرق ذلك حتى 30 ثانية.</div>';const r=await api('/diagnose',{method:'POST',body:{text:$('#diagnose-text').value,include_drafts:$('#diagnose-drafts').checked}});$('#diagnosis-result').innerHTML=diagnosisHtml(r);}
  if(id==='research-form'){const r=await api('/research',{method:'POST',body:{topic:$('#research-topic').value,limit:Number($('#research-limit').value)}});notify('حالات مرشحة: '+r.record_ids.length+'؛ تعذر الوصول إلى '+r.errors.length+' مصدر.');await render();}
  if(id==='gate-form'){await api('/phase-two/enable',{method:'POST',body:{coverage_verified:$('#coverage-check').checked,notes:$('#coverage-notes').value}});notify('وُثّق اكتمال المرحلة الأولى.');}
  if(id==='benchmark-form'){const ids=s=>$(s).value.split(/[\n,،]/).map(x=>x.trim()).filter(Boolean);await api('/benchmark',{method:'POST',body:{test_ids:ids('#test-ids'),validation_ids:ids('#validation-ids')}});notify('حُفظ المعيار وفُصلت العائلات.');await render();}
  if(id==='export-form'){const blob=await api('/export/'+$('#manifest').value,{method:'POST',blob:true});await download(blob,'manhaj-training.jsonl');await render();}
- }catch(err){notify(err.message);}finally{if(button)button.disabled=false;}
+ }catch(err){notify(err.message);if(e.target.id==='diagnose-form')$('#diagnosis-result').innerHTML='';}finally{if(button)button.disabled=false;}
 });
 init();
