@@ -69,7 +69,8 @@ class Store:
             parsed = make_url(url)
             host = parsed.host or ''
             # Supavisor transaction mode (and Supabase in general) cannot use server-side prepared statements.
-            opts['connect_args'] = {'prepare_threshold': None}
+            # TCP keepalives so long CLI jobs survive idle gaps on flaky networks.
+            opts['connect_args'] = {'prepare_threshold': None, 'connect_timeout': 15, 'keepalives': 1, 'keepalives_idle': 30, 'keepalives_interval': 10, 'keepalives_count': 5}
             if host.endswith(('.supabase.com', '.supabase.co')) and 'sslmode' not in parsed.query:
                 opts['connect_args']['sslmode'] = 'require'
             if parsed.port == 6543 or os.getenv('VERCEL'):
