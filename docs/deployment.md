@@ -30,26 +30,31 @@ gh repo create hussain-alayfei/manhaj-objection-dataset --private --source . --p
 
 ## 2. Supabase
 
-1. أنشئ مشروع `manhaj` في `eu-central-1` (MCP `create_project` أو لوحة التحكم).
-2. من اللوحة: Database ← Reset password (كلمة طويلة حروفًا وأرقامًا فقط)، وانسخ من **Connect** سلسلتي session (`:5432`) وtransaction (`:6543`) كما هما، والمفتاح **secret** من API Keys. لا تُلصق في المحادثة.
-3. من طرفيتك:
+أداة MCP لا تُتم إنشاء المشروع (تتطلب تأكيد تكلفة غير متاح فيها)، لذا يُنشأ من سطر الأوامر. من طرفيتك، داخل مجلد المستودع:
 
 ```bash
 npx supabase login
+npx supabase projects create manhaj --org-id ydidykfbqgcswaodxsml --region eu-central-1
 npx supabase link --project-ref <ref>
 npx supabase db push
 npx supabase migration list
 ```
 
+`projects create` يطلب كلمة مرور قاعدة البيانات: اختر كلمة طويلة من حروف وأرقام فقط (لا تحتاج ترميزًا داخل الرابط) واحفظها في مدير كلمات المرور. ثم من اللوحة انسخ من **Connect** سلسلتي session (`:5432`) وtransaction (`:6543`) كما هما (قد يكون المضيف `aws-1-…`)، والمفتاح **secret** من API Keys. لا تُلصق في المحادثة.
+
 التحقق عبر MCP: 20 جدولًا في `public`، امتداد `vector` في `extensions`، الحاوية `sources` خاصة، وملاحظات `rls_enabled_no_policy` متوقعة (RLS مفعّل بلا سياسات عمدًا؛ التطبيق يتصل بصفته مالك الجداول).
 
 ## 3. Vercel
+
+أداة Vercel MCP لا تملك صلاحية إنشاء مشروع في نطاق الحساب، لذا الربط من سطر الأوامر بعد تسجيل الدخول:
 
 ```bash
 npx vercel@latest login
 npx vercel link --yes --project manhaj
 npx vercel git connect
 ```
+
+إن لم يظهر المستودع الخاص، امنح تطبيق Vercel على GitHub صلاحية الوصول إليه.
 
 `vercel.json` يثبت المنطقة `fra1` و`maxDuration: 300`، و`pyproject.toml` يحدد `src.asgi:app`. نشر تجريبي بلا أسرار حقيقية:
 
@@ -104,7 +109,7 @@ python -m src.cli embeddings --include-drafts
 
 ## العمل المستمر
 
-- **قاعدة البيانات:** `npx supabase migration new <name>` ← SQL متوافق مع الإصدار السابق ← اختبار محلي (Docker) ← PR ← `npx supabase db push` قبل دمج الكود ← مستشار MCP.
+- **قاعدة البيانات:** `npx supabase migration new <name>` ← SQL متوافق مع الإصدار السابق ← PR (يطبق CI الهجرات على Postgres + pgvector حقيقي) ← ← `npx supabase db push` قبل دمج الكود ← مستشار MCP.
 - **مراجع جديد:** `create_reviewer.py ... --env-file .env.production.local --token-out ...` ← حدّث `REVIEWER_TOKEN_HASHES` في Vercel ← أعد النشر.
 - **مهام ثقيلة:** محليًا عبر `python -m src.cli` على Supabase.
 - **نسخ احتياطي أسبوعي:** `npx supabase db dump --linked -f backups/$(date +%F).sql`.
