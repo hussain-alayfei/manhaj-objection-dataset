@@ -1,27 +1,26 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مَنْهَج | مساحة المراجعة</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مَنْهَج | مراجعة الشبهات</title><link rel="icon" type="image/png" sizes="32x32" href="/static/img/emblem-32.png"><link rel="apple-touch-icon" href="/static/img/emblem-180.png"><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
 <body>
 <aside class="sidebar">
- <div class="brand"><span class="brand-mark">م</span><div><h1>مَنْهَج</h1><p>من الدعوى إلى التشخيص</p></div></div>
- <div class="workspace-label">مساحة البحث والمراجعة</div>
- <nav id="nav" aria-label="أقسام مساحة المراجعة">
-  <button data-view="overview" class="active" aria-current="page"><span aria-hidden="true">◈</span> نظرة عامة</button>
-  <button data-view="sources"><span aria-hidden="true">▤</span> المصادر</button>
-  <button data-view="objections"><span aria-hidden="true">◌</span> الشبهات المستخرجة</button>
-  <button data-view="external"><span aria-hidden="true">↗</span> الشبهات الخارجية</button>
-  <button data-view="rules"><span aria-hidden="true">≋</span> القواعد المنهجية</button>
-  <button data-view="families"><span aria-hidden="true">⌘</span> عائلات الشبهات</button>
-  <button data-view="review"><span aria-hidden="true">✓</span> المراجعة</button>
-  <button data-view="evaluation"><span aria-hidden="true">▥</span> التقييم</button>
-  <button data-view="export"><span aria-hidden="true">↓</span> تصدير بيانات التدريب</button>
+ <div class="brand"><img src="/static/img/emblem.webp" alt="" width="46" height="46"><h1>مَنْهَج</h1></div>
+ <nav id="nav" aria-label="أقسام الموقع">
+  <button data-view="overview" class="active" aria-current="page"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></g></svg></span> نظرة عامة</button>
+  <button data-view="sources"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 5v16m8.001-2A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2a5 5 0 0 1 4-2z"/></svg></span> المصادر</button>
+  <button data-view="objections"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><path d="M14 14a2 2 0 0 0 2-2V8h-2"/><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M8 14a2 2 0 0 0 2-2V8H8"/></g></svg></span> شبهات الكتاب</button>
+  <button data-view="external"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20a14.5 14.5 0 0 0 0-20M2 12h20"/></g></svg></span> شبهات من مصادر أخرى</button>
+  <button data-view="rules"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><path d="M12 3v18m7-13l3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2a17 17 0 0 0 8 2h1M5 8l3 8a5 5 0 0 1-6 0zV7m2 14h10"/></g></svg></span> القواعد المنهجية</button>
+  <button data-view="families"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><rect width="6" height="6" x="16" y="16" rx="1"/><rect width="6" height="6" x="2" y="16" rx="1"/><rect width="6" height="6" x="9" y="2" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3m-7-4V8"/></g></svg></span> الشبهات المتشابهة</button>
+  <button data-view="review"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14l2 2l4-4"/></g></svg></span> المراجعة</button>
+  <button data-view="evaluation"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 3v16a2 2 0 0 0 2 2h16m-3-4V9m-5 8V5M8 17v-3"/></svg></span> التقييم</button>
+  <button data-view="export"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></svg></span> تصدير البيانات</button>
  </nav>
- <div class="sidebar-foot"><span class="dot"></span> المرحلة الأولى · المصدر أولًا<p>كل استنتاج قابل للمراجعة.<br>كل اعتماد له أثر موثق.</p><button id="logout" class="quiet">تسجيل الخروج</button></div>
+ <div class="sidebar-foot"><button id="logout" class="quiet">تسجيل الخروج</button></div>
 </aside>
 <main>
- <header><div>مَنْهَج <span class="muted">/</span> <span id="breadcrumb">نظرة عامة</span></div><div class="identity"><span class="avatar">م</span><span id="identity">مساحة خاصة للمراجعين</span></div></header>
+ <header><div>مَنْهَج <span class="muted">/</span> <span id="breadcrumb">نظرة عامة</span></div><div class="identity"><span class="avatar" aria-hidden="true"></span><span id="identity"></span></div></header>
  <div id="notice" role="status" hidden></div>
- <section id="login" class="login card"><div class="eyebrow">أهلًا بك في مَنْهَج</div><h2>معرفة موثقة، ومراجعة مسؤولة.</h2><p class="muted">أدخل رمز المراجع الذي أنشأه مسؤول المستودع.</p><form id="login-form"><label for="token">رمز الوصول</label><input id="token" type="password" autocomplete="current-password" required><button class="primary">الدخول إلى مساحة المراجعة</button></form><small>لا توجد حسابات عامة. لا تُعتمد أي سجلات تلقائيًا.</small></section>
+ <section id="login" class="login card"><img class="emblem" src="/static/img/emblem.webp" alt="" width="52" height="52"><h2>تسجيل الدخول</h2><p class="muted">أدخل رمز الوصول الذي أرسله لك مسؤول المشروع.</p><form id="login-form"><label for="token">رمز الوصول</label><input id="token" type="password" autocomplete="current-password" required><button class="primary">دخول</button></form><small>الدخول للمراجعين المسجلين فقط.</small></section>
  <div id="content" hidden></div>
 </main>
 <dialog id="editor" aria-labelledby="editor-title"><div id="editor-content"></div></dialog>
