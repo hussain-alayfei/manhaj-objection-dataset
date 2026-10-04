@@ -109,18 +109,15 @@ python -m src.cli snapshots
 
 التقسيم التلقائي التقريبي 70/15/15 متاح فقط عند 100 حالة معتمدة على الأقل و20 مجموعة مستقلة على الأقل. الأصغر يستخدم حالات معيارية يختارها الخبير. المقاييس التسعة موجودة؛ المقاييس التي تحتاج تحكيمًا بشريًا تظهر `null/not_measured` قبل إدخال التحكيم، ولا تُختلق درجات.
 
-## PostgreSQL + pgvector
+## Supabase (PostgreSQL + pgvector) وVercel
 
 ```sh
-# عيّن POSTGRES_PASSWORD قويًا وREVIEWER_TOKEN_HASHES في .env أولًا
-docker compose up --build -d
+npx supabase db push        # يطبق supabase/migrations على المشروع المرتبط
 ```
 
-المخطط في [supabase/migrations](supabase/migrations) (يُطبَّق على Supabase بـ`npx supabase db push`)، ويشمل الجداول الاثني عشر المطلوبة، إضافة إلى نسخ السجلات، والمتجهات، وبيانات التقسيم، وبوابات المراحل، وتشغيلات الاستخراج والتكرار. عارض SQLite للتطوير يستخدم طبقة التخزين نفسها؛ pgvector ينفذ حساب المسافة في PostgreSQL. تُحفظ embeddings مع معرف النموذج وإصدار السجل.
+المخطط في [supabase/migrations](supabase/migrations)، ويشمل الجداول المطلوبة، إضافة إلى نسخ السجلات، والمتجهات، وبيانات التقسيم، وبوابات المراحل، وتشغيلات الاستخراج والتكرار، مع RLS وحاوية PDF خاصة. عارض SQLite للتطوير يستخدم طبقة التخزين نفسها؛ pgvector ينفذ حساب المسافة في PostgreSQL. تُحفظ embeddings مع معرف النموذج وإصدار السجل. CI يطبق الهجرات نفسها على PostgreSQL + pgvector حقيقي في GitHub Actions.
 
-في نشر Docker أدخل الكتاب من واجهة المصادر حتى تكون المسارات صحيحة داخل الحاوية. لا تنقل قاعدة SQLite إلى PostgreSQL بمجرد تغيير الرابط؛ أعد إدخال المصدر في قاعدة جديدة أو اكتب ترحيلًا خاضعًا للتدقيق للمراجعات القائمة. لا تُحذف قاعدة المراجعات لاستبدالها ببذرة.
-
-Docker ينشر المنفذ محليًا فقط، ويعمل التطبيق كمستخدم غير root. التوسع الشبكي يحتاج TLS عبر وكيل موثوق، وحدود أحجام وطلبات، ونسخ احتياطي واختبار استعادة ومراقبة حسب [دليل التشغيل](docs/operations.md). ملف Compose مخطط نشر؛ لم يعمل Docker/PostgreSQL في جهاز التسليم.
+لا تنقل قاعدة SQLite إلى PostgreSQL بمجرد تغيير الرابط؛ أعد إدخال المصدر في قاعدة جديدة (`scripts/seed_book.py`) أو اكتب ترحيلًا خاضعًا للتدقيق للمراجعات القائمة. لا تُحذف قاعدة المراجعات لاستبدالها ببذرة. الاستضافة على Vercel وخطوات النشر الكاملة في [دليل النشر](docs/deployment.md).
 
 ## الاختبارات
 
@@ -159,6 +156,6 @@ docs/                   methodology, governance, review, evaluation, operations
 - [حوكمة البيانات](docs/data-governance.md) و[خطوات المراجعة](docs/review-process.md)
 - [التقييم ومنع التسرب](docs/evaluation.md) و[سياسة المصادر](docs/source-policy.md)
 - [تقرير التسليم والتحقق](docs/delivery-report.md)
-- توثيق تقني رسمي: [استخراج PDF](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)، [pgvector](https://github.com/pgvector/pgvector)، [FastAPI في Docker](https://fastapi.tiangolo.com/deployment/docker/)، [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs)، [التضمين](https://docs.ollama.com/api/embed).
+- توثيق تقني رسمي: [استخراج PDF](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)، [pgvector](https://github.com/pgvector/pgvector)، [FastAPI على Vercel](https://vercel.com/docs/frameworks/backend/fastapi)، [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs)، [التضمين](https://docs.ollama.com/api/embed).
 
 رخصة MIT للكود فقط. راجع [LICENSE](LICENSE) قبل مشاركة المصادر أو البيانات المشتقة.
