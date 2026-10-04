@@ -144,7 +144,7 @@ td button{min-height:34px;padding:4px 12px;font-size:12.5px}
 .login>:first-child{padding-top:32px}
 .login>:last-child{padding-bottom:28px}
 .login::after{content:"";grid-column:2;grid-row:1/span 5;background:var(--green-deep) url(/static/img/girih-strip.webp) center/cover}
-.login .emblem{width:52px;height:52px;margin-bottom:10px}
+.login>.emblem{box-sizing:content-box;width:52px;height:52px;padding:30px 32px 0;margin-bottom:6px}
 .login form{margin:18px 0}
 .login button{margin-top:16px;width:100%}
 
