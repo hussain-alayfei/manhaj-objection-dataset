@@ -5,6 +5,7 @@ from src.db import Store, sources, chunks
 from src.models import Record, ReviewRequest
 
 
+CHUNK_TEXT = 'اختبار مقارنة تفاحتين مختلفتين في الوزن. افحص الفارق المؤثر.'
 PROVIDER_ENV = ('OPENAI_API_KEY', 'LLM_PROVIDER', 'DIAGNOSIS_MODEL', 'DIAGNOSIS_REASONING_EFFORT', 'EXTRACTOR_MODEL', 'EMBEDDING_PROVIDER', 'EMBEDDING_MODEL', 'EMBEDDING_DIM',
                 'STORAGE_BACKEND', 'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'READ_ONLY', 'VERCEL', 'VERCEL_URL', 'VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_BRANCH_URL',
                 'ALLOWED_ORIGINS', 'DIAGNOSE_DAILY_LIMIT', 'ENABLE_HEAVY_ENDPOINTS', 'ALLOW_SQLITE_SMOKE', 'DATABASE_URL', 'REVIEWER_TOKEN_HASHES')
@@ -22,14 +23,16 @@ def store():
     with store.transaction() as c:
         source = {'id':'SRC-test','source_type':'book','source_name':'وثيقة اختبار اصطناعية غير دينية','author':'test','sha256':'test','page_count':1}
         c.execute(insert(sources).values(id=source['id'],sha256='test',payload=source))
-        c.execute(insert(chunks).values(id='CH-1',source_id='SRC-test',page_number=1,section='اختبار',text='اختبار مقارنة تفاحتين مختلفتين في الوزن. افحص الفارق المؤثر.',raw_text='اختبار مقارنة تفاحتين مختلفتين في الوزن. افحص الفارق المؤثر.',payload={}))
+        c.execute(insert(chunks).values(id='CH-1',source_id='SRC-test',page_number=1,section='اختبار',text=CHUNK_TEXT,raw_text=CHUNK_TEXT,payload={}))
     store.register_reviewer('expert')
     return store
 
 
 def record(rid='SHB-test', kind='objection', **changes):
     text='اختبار مقارنة تفاحتين مختلفتين في الوزن.'
-    citation={'source_id':'SRC-test','source_name':'وثيقة اختبار اصطناعية غير دينية','author':'test','page_number':1,'source_excerpt':text,'spans':[{'chunk_id':'CH-1','page_number':1,'start':0,'end':len(text),'text':text}]}
+    # A rule quotes the author's own wording, so its cited excerpt covers the whole chunk.
+    quoted=CHUNK_TEXT if kind=='rule' else text
+    citation={'source_id':'SRC-test','source_name':'وثيقة اختبار اصطناعية غير دينية','author':'test','page_number':1,'source_excerpt':quoted,'spans':[{'chunk_id':'CH-1','page_number':1,'start':0,'end':len(quoted),'text':quoted}]}
     r=Record(id=rid,kind=kind,title_ar='مثال اصطناعي للاختبار',objection_text_ar=text,source=citation,central_claim_ar='الفاكهتان متماثلتان في الوزن',primary_pattern='unknown',diagnostic_reason_ar='المعيار غير محدد',revealing_question_ar='ما الوزن؟',treatment_ar='قارن الوزن',methodology_rule_ar='افحص الفارق المؤثر',source_evidence={'original':'immutable'},ai_analysis={'original':'immutable'}).model_dump()
     r.update(changes)
     return r

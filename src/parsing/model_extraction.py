@@ -94,7 +94,8 @@ def get_extractor():
 
 def extract_with_model(store, source_id, extractor=None, kind='all'):
     extractor = extractor or get_extractor()
-    source = next(s for s in store.source_list() if s['id'] == source_id)
+    source = next((s for s in store.source_list() if s['id'] == source_id), None)
+    if source is None: raise KeyError(source_id)
     if source['source_type'] != 'book': raise ValueError('Phase 1 semantic extraction accepts book sources only')
     run = {'source_id': source_id, 'kind': 'semantic_' + kind, 'engine': extractor.model, 'at': now(), 'chunks_scanned': 0, 'candidate_ids': [], 'source_item_ids': [], 'errors': [], 'semantic_completeness': 'requires_human_coverage_review'}
     for chunk in store.source_chunks(source_id):

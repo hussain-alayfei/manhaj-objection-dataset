@@ -12,7 +12,8 @@ RULE = re.compile(r'القاعدة العامة|أن الشريعة لا تفر�
 
 
 def corpus(store, source_id):
-    source = next(s for s in store.source_list() if s['id'] == source_id)
+    source = next((s for s in store.source_list() if s['id'] == source_id), None)
+    if source is None: raise KeyError(source_id)
     rows = store.source_chunks(source_id)
     text, mapping = '', []
     for i, row in enumerate(rows):
