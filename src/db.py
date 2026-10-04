@@ -227,9 +227,24 @@ class Store:
             if set(req.changes) - allowed: raise ValueError('Source evidence and provenance are immutable; re-ingest a corrected extraction')
             new = copy.deepcopy(old)
             new.update(req.changes)
+            from .parsing import normalize_arabic
             if 'objection_text_ar' in req.changes:
-                from .parsing import normalize_arabic
                 new['normalized_objection_ar'] = normalize_arabic(new['objection_text_ar'])
+            if new['kind'] == 'objection' and 'methodology_rule_ids' in req.changes:
+                new['methodology_rule_ids'] = list(dict.fromkeys(new['methodology_rule_ids']))
+                linked = []
+                for rule_id in new['methodology_rule_ids']:
+                    try: rule = self.get(rule_id, c)
+                    except KeyError: raise ValueError(f'Unknown methodology rule: {rule_id}') from None
+                    if rule['kind'] != 'rule': raise ValueError(f'{rule_id} is not a methodology rule')
+                    linked.append(rule['methodology_rule_ar'])
+                new['methodology_rule_ar'] = '\n'.join(linked)  # stored rule text always mirrors the linked rules
+            if 'examples' in req.changes:
+                new['examples'] = list(dict.fromkeys(new['examples']))
+                for example_id in new['examples']:
+                    try: example = self.get(example_id, c)
+                    except KeyError: raise ValueError(f'Unknown family example: {example_id}') from None
+                    if example['kind'] != 'objection': raise ValueError(f'{example_id} is not an objection')
             new['review_status'] = {'approve': 'approved', 'reject': 'rejected', 'edit': 'needs_review', 'reopen': 'needs_review'}[req.action]
             new['requires_human_review'] = req.action != 'approve' or new['primary_pattern'] in ('unknown', 'mixed_pattern', 'multiple_claims', 'insufficient_evidence', 'requires_human_review')
             new['reviewer_notes'] = req.notes
@@ -241,17 +256,24 @@ class Store:
                     if not req.source_verified or not req.page_verified: raise ValueError('Source and page attestation required')
                 if new['kind'] == 'objection':
                     from .parsing import normalize_arabic
-                    if normalize_arabic(new['objection_text_ar']) not in normalize_arabic(new['source']['source_excerpt']):
+                    wording = normalize_arabic(new['objection_text_ar'])
+                    if not wording or wording not in normalize_arabic(new['source']['source_excerpt']):
                         raise ValueError('Exact objection wording must be selected from the source excerpt; use central claim for paraphrases')
                     if not all(new[k].strip() for k in ('central_claim_ar', 'diagnostic_reason_ar', 'revealing_question_ar', 'treatment_ar')):
                         raise ValueError('Complete diagnosis fields before approval')
                     if new['primary_pattern'] in ('جمع بين مختلفين', 'تفريق بين متماثلين', 'mixed_pattern') and not new['methodology_rule_ids']:
                         raise ValueError('Link approved source methodology rules')
                     for rule_id in new['methodology_rule_ids']:
-                        rule = self.get(rule_id, c)
+                        try: rule = self.get(rule_id, c)
+                        except KeyError: raise ValueError(f'Unknown methodology rule: {rule_id}') from None
                         if rule['kind'] != 'rule' or rule['phase'] != 1 or rule['review_status'] != 'approved': raise ValueError('Methodology rule is not approved Phase 1 evidence')
                     new['methodology_rule_ar'] = '\n'.join(self.get(x, c)['methodology_rule_ar'] for x in new['methodology_rule_ids'])
-                if new['kind'] == 'rule' and not new['methodology_rule_ar'].strip(): raise ValueError('Rule text required')
+                if new['kind'] == 'rule':
+                    rule_text = normalize_arabic(new['methodology_rule_ar'])
+                    if not rule_text: raise ValueError('Rule text required')
+                    # The UI shows this as "the rule as stated in the source", so it must be the author's words.
+                    if rule_text not in normalize_arabic(new['source']['source_excerpt']):
+                        raise ValueError('Rule text must be quoted from the source excerpt; put paraphrases in the diagnosis fields')
                 if new['kind'] == 'family':
                     if not new['core_claim_ar'] or not new['examples']: raise ValueError('Family claim and examples required')
                     if any(self.get(x, c)['review_status'] != 'approved' for x in new['examples']): raise ValueError('Approve family members first')
@@ -272,7 +294,11 @@ class Store:
         out = []
         for r in self.records(kind, 'approved', conn=conn):
             if not r['human_review'] or r['human_review']['action'] != 'approve': continue
-            if r['kind'] == 'objection' and any(self.get(x, conn)['review_status'] != 'approved' for x in r['methodology_rule_ids']): continue
+            if r['kind'] == 'objection':
+                rules = [self.get(x, conn) for x in r['methodology_rule_ids']]
+                if any(x['review_status'] != 'approved' for x in rules): continue
+                # A rule edited after this objection was approved invalidates the copied rule text.
+                if rules and r['methodology_rule_ar'] != '\n'.join(x['methodology_rule_ar'] for x in rules): continue
             if r['kind'] == 'family' and any(self.get(x, conn)['review_status'] != 'approved' for x in r['examples']): continue
             out.append(r)
         return out

@@ -3,10 +3,7 @@
 Nothing here contacts a provider at import time; clients are built lazily so a
 missing key degrades to an explicit abstention instead of a crash.
 """
-import logging
 import os
-
-log = logging.getLogger('manhaj.llm')
 
 
 def llm_provider():
@@ -24,10 +21,10 @@ def embedding_dim():
     return int(os.getenv('EMBEDDING_DIM', '768'))
 
 
-def openai_client(timeout=120):
+def openai_client(timeout=120, max_retries=1):
     if not os.getenv('OPENAI_API_KEY'): raise ValueError('OPENAI_API_KEY is not configured')
     from openai import OpenAI
-    return OpenAI(timeout=timeout, max_retries=1)
+    return OpenAI(timeout=timeout, max_retries=max_retries)
 
 
 def provider_errors():

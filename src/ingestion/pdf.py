@@ -21,7 +21,7 @@ def ingest_pdf(store, path, title='كتاب وليد', author='', profile='stand
     ocr_pages: page-number -> externally produced OCR text; always unverified.
     """
     path = Path(path)
-    if path.stat().st_size > 100 * 1024 * 1024: raise ValueError('PDF exceeds 100 MB')
+    if path.stat().st_size > 50 * 1024 * 1024: raise ValueError('PDF exceeds 50 MB (the private storage bucket limit)')
     sha = hashlib.sha256(path.read_bytes()).hexdigest()
     source_id = f'SRC-{sha[:16]}'
     with store.engine.connect() as c:

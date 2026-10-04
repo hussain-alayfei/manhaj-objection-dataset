@@ -6,15 +6,15 @@
  <div class="brand"><span class="brand-mark">م</span><div><h1>مَنْهَج</h1><p>من الدعوى إلى التشخيص</p></div></div>
  <div class="workspace-label">مساحة البحث والمراجعة</div>
  <nav id="nav" aria-label="أقسام مساحة المراجعة">
-  <button data-view="overview" class="active" aria-current="page"><span>◈</span> نظرة عامة</button>
-  <button data-view="sources"><span>▤</span> المصادر</button>
-  <button data-view="objections"><span>◌</span> الشبهات المستخرجة</button>
-  <button data-view="external"><span>↗</span> الشبهات الخارجية</button>
-  <button data-view="rules"><span>≋</span> القواعد المنهجية</button>
-  <button data-view="families"><span>⌘</span> عائلات الشبهات</button>
-  <button data-view="review"><span>✓</span> المراجعة</button>
-  <button data-view="evaluation"><span>▥</span> التقييم</button>
-  <button data-view="export"><span>↓</span> تصدير بيانات التدريب</button>
+  <button data-view="overview" class="active" aria-current="page"><span aria-hidden="true">◈</span> نظرة عامة</button>
+  <button data-view="sources"><span aria-hidden="true">▤</span> المصادر</button>
+  <button data-view="objections"><span aria-hidden="true">◌</span> الشبهات المستخرجة</button>
+  <button data-view="external"><span aria-hidden="true">↗</span> الشبهات الخارجية</button>
+  <button data-view="rules"><span aria-hidden="true">≋</span> القواعد المنهجية</button>
+  <button data-view="families"><span aria-hidden="true">⌘</span> عائلات الشبهات</button>
+  <button data-view="review"><span aria-hidden="true">✓</span> المراجعة</button>
+  <button data-view="evaluation"><span aria-hidden="true">▥</span> التقييم</button>
+  <button data-view="export"><span aria-hidden="true">↓</span> تصدير بيانات التدريب</button>
  </nav>
  <div class="sidebar-foot"><span class="dot"></span> المرحلة الأولى · المصدر أولًا<p>كل استنتاج قابل للمراجعة.<br>كل اعتماد له أثر موثق.</p><button id="logout" class="quiet">تسجيل الخروج</button></div>
 </aside>
@@ -24,5 +24,5 @@
  <section id="login" class="login card"><div class="eyebrow">أهلًا بك في مَنْهَج</div><h2>معرفة موثقة، ومراجعة مسؤولة.</h2><p class="muted">أدخل رمز المراجع الذي أنشأه مسؤول المستودع.</p><form id="login-form"><label for="token">رمز الوصول</label><input id="token" type="password" autocomplete="current-password" required><button class="primary">الدخول إلى مساحة المراجعة</button></form><small>لا توجد حسابات عامة. لا تُعتمد أي سجلات تلقائيًا.</small></section>
  <div id="content" hidden></div>
 </main>
-<dialog id="editor"><div id="editor-content"></div></dialog>
+<dialog id="editor" aria-labelledby="editor-title"><div id="editor-content"></div></dialog>
 </body></html>

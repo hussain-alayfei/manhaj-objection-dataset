@@ -28,7 +28,8 @@ def _check(vectors, expected, dim=None):
 
 
 class SemanticEncoder:
-    def __init__(self, model=None, client=None):
+    def __init__(self, model=None, client=None, interactive=False):
+        self.interactive = interactive  # inside a web request: short timeout, no retries
         self.provider = embedding_provider()
         self.api_model = model or os.getenv('EMBEDDING_MODEL', '')
         if not self.api_model: raise ValueError('Set EMBEDDING_MODEL for semantic retrieval; lexical fallback is explicitly labelled')
@@ -53,7 +54,7 @@ class SemanticEncoder:
         vectors = [[0.0] * self.dim for _ in texts]  # empty text carries no signal: zero vector, cosine 0
         wanted = [i for i, t in enumerate(texts) if t and t.strip()]
         try:
-            self.client = self.client or openai_client(timeout=60)
+            self.client = self.client or (openai_client(timeout=20, max_retries=0) if self.interactive else openai_client(timeout=60))
             for start in range(0, len(wanted), OPENAI_BATCH):
                 batch = wanted[start:start + OPENAI_BATCH]
                 response = self.client.embeddings.create(model=self.api_model, input=[texts[i] for i in batch], dimensions=self.dim)
@@ -84,11 +85,21 @@ def refresh_embeddings(store, encoder=None, include_drafts=False, record_ids=Non
 
     Provider calls happen before the write transaction so the global write lock is held briefly.
     Unchanged text on a new record version reuses its stored vector instead of calling the provider."""
-    encoder = encoder or SemanticEncoder()
-    records = embedding_candidates(store, include_drafts)
-    if record_ids is not None: records = [r for r in records if r['id'] in set(record_ids)]
+    encoder = encoder or SemanticEncoder(interactive=record_ids is not None)
+    if record_ids is not None:
+        # Targeted refresh (after a review): touch only these records, not the whole corpus.
+        wanted = {'approved', *DRAFT_STATUSES} if include_drafts else {'approved'}
+        records = []
+        for rid in dict.fromkeys(record_ids):
+            try: r = store.get(rid)
+            except KeyError: continue
+            if r['review_status'] in wanted: records.append(r)
+    else:
+        records = embedding_candidates(store, include_drafts)
+    query = select(embeddings).where(embeddings.c.model == encoder.model)
+    if record_ids is not None: query = query.where(embeddings.c.record_id.in_([r['id'] for r in records] or ['']))
     with store.engine.connect() as c:
-        existing = {(row['record_id'], row['field']): row for row in c.execute(select(embeddings).where(embeddings.c.model == encoder.model)).mappings()}
+        existing = {(row['record_id'], row['field']): row for row in c.execute(query).mappings()}
     todo, reuse = [], []
     for r in records:
         for field in FIELDS:
@@ -120,7 +131,7 @@ def build_embeddings(store, encoder=None, include_drafts=False):
 class HybridRetriever:
     def __init__(self, store, encoder=None):
         self.store = store
-        self.encoder = encoder or (SemanticEncoder() if os.getenv('EMBEDDING_MODEL') else None)
+        self.encoder = encoder or (SemanticEncoder(interactive=True) if os.getenv('EMBEDDING_MODEL') else None)
 
     def encode_query(self, query):
         return self.encoder.encode([query])[0] if self.encoder else None

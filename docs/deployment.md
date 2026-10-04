@@ -76,16 +76,18 @@ python scripts/create_reviewer.py reviewer-03 --env-file .env.production.local -
 
 | المتغير | Production | Preview |
 |---|---|---|
-| `DATABASE_URL` | `postgresql+psycopg://postgres.<ref>:<pw>@<pooler-host>:6543/postgres` | نفسه |
+| `DATABASE_URL` | `postgresql+psycopg://postgres.<ref>:<pw>@<pooler-host>:6543/postgres` | `sqlite:////tmp/preview.db` مع `ALLOW_SQLITE_SMOKE=1` |
 | `READ_ONLY` | — | `1` |
 | `REVIEWER_TOKEN_HASHES` | السطر من `.env.production.local` | نفسه |
-| `OPENAI_API_KEY` | مفتاح مشروع OpenAI مع حد إنفاق شهري | نفسه |
-| `LLM_PROVIDER` / `DIAGNOSIS_MODEL` / `DIAGNOSIS_REASONING_EFFORT` | `openai` / `gpt-6.1-sol` / `low` | `openai` / `gpt-6-luna` / `low` |
+| `OPENAI_API_KEY` | مفتاح مشروع OpenAI مع حد إنفاق شهري | — (لا يُضبط) |
+| `LLM_PROVIDER` / `DIAGNOSIS_MODEL` / `DIAGNOSIS_REASONING_EFFORT` | `openai` / `gpt-6.1-sol` / `low` | `none` |
 | `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `openai` / `text-embedding-3-small` / `768` | نفسه |
-| `STORAGE_BACKEND` / `SUPABASE_URL` / `SUPABASE_SECRET_KEY` / `SUPABASE_STORAGE_BUCKET` | `supabase` / رابط المشروع / المفتاح السري / `sources` | نفسه |
+| `STORAGE_BACKEND` / `SUPABASE_URL` / `SUPABASE_SECRET_KEY` / `SUPABASE_STORAGE_BUCKET` | `supabase` / رابط المشروع / المفتاح السري / `sources` | `local` (دون المفتاح السري) |
 | `DIAGNOSE_DAILY_LIMIT` | `50` | `10` |
 
-ملف `.env` المحلي يحمل القيم نفسها، لكن `DATABASE_URL` على session pooler `:5432`، ودون `READ_ONLY`.
+ملف `.env` المحلي يحمل القيم نفسها، لكن `DATABASE_URL` على session pooler `:5432`. **النسخة المحلية من الموقع تعمل للقراءة فقط تلقائيًا** عندما تشير إلى قاعدة بعيدة (الإنتاج)، لأن الاعتماد وسجل التدقيق لا يُحذفان؛ للكتابة المقصودة اضبط `ALLOW_REMOTE_WRITES=1` مؤقتًا. أوامر سطر الأوامر (`seed_book.py` و`upload_source_pdf.py` و`src.cli`) تكتب عمدًا، فشغّلها فقط وأنت تقصد الإنتاج.
+
+**نسخ المعاينة (Preview):** تعمل على قاعدة SQLite مؤقتة فارغة دون مفاتيح الإنتاج، فلا يستطيع أي فرع تجريبي الكتابة في قاعدة الإنتاج أو الصرف من OpenAI.
 
 ## 5. بذر قاعدة Supabase (محليًا)
 
@@ -104,7 +106,7 @@ python -m src.cli embeddings --include-drafts
 - `/health` = 200، دخول كل رمز، الملخص 103/14/117.
 - فتح PDF من المصادر (يفتح رابطًا موقّعًا في نافذة جديدة).
 - تشخيص بوضع المسودات يعيد تحليل GPT موسومًا «مسودة» مع الصفحات؛ الوضع المعتمد يمتنع (`no_approved_methodology`) حتى تُعتمد قواعد.
-- لا تجرِ اعتمادات تجريبية في الإنتاج؛ اختبارات الكتابة تُجرى محليًا.
+- لا تجرِ اعتمادات تجريبية في الإنتاج؛ اختبارات الكتابة تُجرى على نسخة SQLite محلية (`DATABASE_URL=sqlite:///work/test.db`).
 - المعاينة: القراءة تعمل والكتابة 403.
 
 ## العمل المستمر

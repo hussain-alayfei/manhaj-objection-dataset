@@ -3,10 +3,11 @@ import hmac
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -15,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
 
 from .classification import diagnose
 from .db import Conflict, Store, normalize_database_url, sources
@@ -64,6 +66,12 @@ class RefreshRequest(BaseModel):
     include_drafts: bool = True
 
 
+class EvaluateRequest(BaseModel):
+    predictions: dict[str, dict] = {}
+    human_scores: dict[str, dict] = {}
+    split: Literal['test', 'validation'] = 'test'
+
+
 def _flag(name):
     return os.getenv(name, '').strip().lower() in ('1', 'true', 'yes')
 
@@ -80,17 +88,26 @@ def same_origin(request, origin):
     return origin.rstrip('/') in allowed
 
 
+def remote_database(url):
+    if not url or url.startswith('sqlite'): return False
+    return (make_url(url).host or '') not in ('localhost', '127.0.0.1', '::1')
+
+
 def create_app(store=None, token_map=None, *, hosted=None, read_only=None, storage=None):
     # Validate configuration before touching the database or the (read-only, when hosted) filesystem.
     token_map = token_map if token_map is not None else json.loads(os.getenv('REVIEWER_TOKEN_HASHES', '{}'))
     if not token_map: raise RuntimeError('Configure reviewer tokens with python scripts/create_reviewer.py; no default credentials exist')
-    if any(len(v) != 64 for v in token_map.values()): raise RuntimeError('Reviewer secrets must be SHA-256 digests')
+    token_map = {rid: str(v).strip().lower() for rid, v in token_map.items()}
+    if any(not re.fullmatch(r'[0-9a-f]{64}', v) for v in token_map.values()): raise RuntimeError('Reviewer secrets must be SHA-256 hex digests')
     hosted = bool(os.getenv('VERCEL')) if hosted is None else hosted
-    read_only = _flag('READ_ONLY') if read_only is None else read_only
+    url = normalize_database_url(os.getenv('DATABASE_URL', ''))
+    if read_only is None:
+        # A local copy pointed at a remote (production) database is read-only unless explicitly allowed,
+        # because approvals and history written there are permanent.
+        read_only = _flag('READ_ONLY') or (store is None and not hosted and remote_database(url) and not _flag('ALLOW_REMOTE_WRITES'))
     heavy_allowed = not hosted or _flag('ENABLE_HEAVY_ENDPOINTS')
     if store is None:
         validate_config()
-        url = normalize_database_url(os.getenv('DATABASE_URL', ''))
         if hosted and (not url or url.startswith('sqlite')) and not _flag('ALLOW_SQLITE_SMOKE'):
             raise RuntimeError('Hosted deployments require a PostgreSQL DATABASE_URL (Supabase transaction pooler)')
         store = Store(url or None)
@@ -109,6 +126,10 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     def heavy():
         if not heavy_allowed: raise HTTPException(409, CLI_ONLY)
+
+    def local_only():
+        # Uploads exceed Vercel's 4.5 MB body limit and need a writable disk: never on hosted deployments.
+        if hosted: raise HTTPException(409, CLI_ONLY)
 
     @app.middleware('http')
     async def security_headers(request, call_next):
@@ -211,7 +232,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         return FileResponse(path, media_type='application/pdf', filename='source.pdf', content_disposition_type='inline')
 
     @app.post('/api/ingest')
-    def ingest(file: UploadFile = File(), title: str = Form('كتاب وليد'), author: str = Form(''), profile: str = Form('standard'), actor=Depends(identity), _=Depends(heavy)):
+    def ingest(file: UploadFile = File(), title: str = Form('كتاب وليد'), author: str = Form(''), profile: str = Form('standard'), actor=Depends(identity), _=Depends(local_only)):
         folder = ROOT / 'data' / 'raw'
         folder.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=folder, suffix='.pdf', delete=False) as out:
@@ -220,7 +241,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
             try:
                 while block := file.file.read(1024*1024):
                     size += len(block)
-                    if size > 100*1024*1024: raise ValueError('PDF exceeds 100 MB')
+                    if size > 50*1024*1024: raise ValueError('PDF exceeds 50 MB')
                     out.write(block)
             except Exception:
                 out.close(); path.unlink(missing_ok=True); raise
@@ -241,7 +262,9 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         return diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only)
 
     @app.get('/api/search')
-    def search(q: str, kind: str | None = None, actor=Depends(identity)): return HybridRetriever(store).search(q, kind)
+    def search(q: str, kind: str | None = None, actor=Depends(identity)):
+        if kind not in (None, 'rule', 'objection', 'family'): raise ValueError('Invalid kind')
+        return HybridRetriever(store).search(q, kind)
 
     @app.post('/api/embeddings/refresh')
     def embeddings_refresh(request: RefreshRequest, actor=Depends(identity)):
@@ -281,11 +304,13 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.post('/api/benchmark')
     def benchmark(request: BenchmarkRequest, actor=Depends(identity)):
-        return create_benchmark(store, request.test_ids, request.validation_ids, request.auto, reviewer_id=actor)
+        manifest = create_benchmark(store, request.test_ids, request.validation_ids, request.auto, reviewer_id=actor)
+        # Snapshots of every eligible record stay in the database; the response stays small.
+        return {**{k: v for k, v in manifest.items() if k != 'records'}, 'record_count': len(manifest.get('records', []))}
 
     @app.post('/api/evaluate/{manifest_id}')
-    def evaluate(manifest_id: str, body: dict, actor=Depends(identity)):
-        return evaluate_predictions(store, manifest_id, body.get('predictions', {}), body.get('human_scores', {}), body.get('split', 'test'))
+    def evaluate(manifest_id: str, body: EvaluateRequest, actor=Depends(identity)):
+        return evaluate_predictions(store, manifest_id, body.predictions, body.human_scores, body.split)
 
     @app.post('/api/export/{manifest_id}')
     def training_export(manifest_id: str, actor=Depends(identity)):
@@ -294,7 +319,10 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.get('/api/export-json')
     def json_export(actor=Depends(identity)):
-        return Response(json.dumps(store.eligible(), ensure_ascii=False, indent=2), media_type='application/json', headers={'Content-Disposition': 'attachment; filename="manhaj-approved.json"'})
+        # Cases held out for evaluation are flagged so nobody trains on them by accident.
+        reserved = {x for m in store.list_documents('dataset_manifests') for k in ('test_ids', 'validation_ids') for x in m['payload'].get(k, [])}
+        records = [{**r, 'reserved_for_evaluation': r['id'] in reserved} for r in store.eligible()]
+        return Response(json.dumps(records, ensure_ascii=False, indent=2), media_type='application/json', headers={'Content-Disposition': 'attachment; filename="manhaj-approved.json"'})
 
     @app.post('/api/phase-two/enable')
     def enable(request: GateRequest, actor=Depends(identity)):

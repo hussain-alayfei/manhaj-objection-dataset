@@ -67,7 +67,8 @@ class OpenAIAnalyst:
         request = {'model': self.model, 'input': [{'role': 'system', 'content': system}, {'role': 'user', 'content': json.dumps(payload, ensure_ascii=False)}], 'text_format': AnalysisProposal, 'store': False, 'max_output_tokens': int(os.getenv('DIAGNOSIS_MAX_OUTPUT_TOKENS', '8000'))}
         if effort := os.getenv('DIAGNOSIS_REASONING_EFFORT', '').strip(): request['reasoning'] = {'effort': effort}
         try:
-            self._client = self._client or openai_client()
+            # One attempt within the request budget: embedding (<=20 s) + analysis (<=150 s) stays under Vercel's 300 s.
+            self._client = self._client or openai_client(timeout=float(os.getenv('DIAGNOSIS_TIMEOUT', '150')), max_retries=0)
             response = self._client.responses.parse(**request)
         except OpenAIError as error:
             raise ValueError(f'provider_error: {type(error).__name__}') from error
