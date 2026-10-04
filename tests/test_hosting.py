@@ -155,3 +155,13 @@ def test_create_reviewer_token_out_never_prints_token(tmp_path):
     assert token and token not in out.stdout
     hashes = json.loads(env_file.read_text(encoding='utf-8').split('=', 1)[1])
     assert hashes == {'reviewer-02': hashlib.sha256(token.encode()).hexdigest()}
+
+
+def test_assets_are_cacheable_but_api_data_is_not(store):
+    c = client(store)
+    html = c.get('/').text
+    assert '/static/app.js?v=' in html and '/static/style.css?v=' in html
+    assert c.get('/static/fonts/amiri-400-arabic.woff2').headers['cache-control'] == 'public, max-age=31536000, immutable'
+    assert c.get('/static/app.js?v=abc').headers['cache-control'] == 'public, max-age=31536000, immutable'
+    api = c.get('/api/me', headers=AUTH)
+    assert api.headers['cache-control'] == 'no-store' and api.headers['server-timing'].startswith('app;dur=')

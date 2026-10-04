@@ -18,17 +18,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 
+import time
+
 from .classification import diagnose
 from .db import Conflict, Store, normalize_database_url, sources
-from .duplicate_detection import detect_duplicates
-from .evaluation import create_benchmark, evaluate_predictions
-from .export import build_training_export
-from .family_detection import create_families
-from .ingestion import ingest_pdf
 from .llm import llm_provider, validate_config
 from .models import ReviewRequest, SUBPATTERNS
-from .parsing.extraction import extract_source
-from .research import certify_phase_one, research_common_objections
 from .retrieval import HybridRetriever, refresh_embeddings
 from .retrieval.hybrid import SemanticEncoder
 from .storage import get_storage
@@ -38,6 +33,14 @@ log = logging.getLogger('manhaj.api')
 CLI_ONLY = 'متاح من سطر الأوامر فقط في النسخة المستضافة'
 # Heavy summary fields stay out of list responses (Vercel caps responses at 4.5 MB); fetch details by id.
 HEAVY_DOCUMENT_FIELDS = {'dataset_manifests': ('records',), 'extraction_runs': ('inventory',), 'duplicate_runs': ('suggestions', 'pairs'), 'evaluation_runs': ('predictions',)}
+IMMUTABLE = 'public, max-age=31536000, immutable'
+
+
+def asset_version(path):
+    import hashlib as _h
+    return _h.sha256(path.read_bytes()).hexdigest()[:12]
+
+
 DOCUMENT_KINDS = ('dataset_manifests', 'evaluation_runs', 'extraction_runs', 'duplicate_runs', 'training_exports', 'phase_gates', 'source_items')
 
 
@@ -139,10 +142,19 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
             return JSONResponse({'detail': 'Cross-origin request blocked'}, status_code=403)
         if read_only and request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path != '/api/diagnose':
             return JSONResponse({'detail': 'نسخة معاينة للقراءة فقط'}, status_code=403)
+        started = time.perf_counter()
         response = await call_next(request)
+        response.headers['Server-Timing'] = f'app;dur={(time.perf_counter() - started) * 1000:.1f}'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
-        response.headers['Cache-Control'] = 'no-store'
+        # Fonts, images and versioned JS/CSS never change at a given URL; API data is private and never cached.
+        path = request.url.path
+        if path.startswith('/static/') and (request.query_params.get('v') or path.startswith(('/static/fonts/', '/static/img/'))):
+            response.headers['Cache-Control'] = IMMUTABLE
+        elif path.startswith('/static/'):
+            response.headers['Cache-Control'] = 'no-cache'
+        else:
+            response.headers['Cache-Control'] = 'no-store'
         response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' blob: data:; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
         return response
 
@@ -248,6 +260,8 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         try:
             with path.open('rb') as inp:
                 if inp.read(5) != b'%PDF-': raise ValueError('Expected a PDF file')
+            from .ingestion import ingest_pdf
+            from .parsing.extraction import extract_source
             src = ingest_pdf(store, path, title, author, profile, ROOT/'data')
             run = extract_source(store, src['id'], data_dir=ROOT/'data')
             return {'source_id': src['id'], 'candidate_count': run['new_records']}
@@ -274,6 +288,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.post('/api/duplicates')
     def duplicates(actor=Depends(identity), _=Depends(heavy)):
+        from .duplicate_detection import detect_duplicates
         run = detect_duplicates(store, SemanticEncoder() if os.getenv('EMBEDDING_MODEL') else None)
         return {'id': run['id'], 'mode': run['mode'], 'pairs': len(run['pairs'])}
 
@@ -283,6 +298,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         if not runs: raise ValueError('Run duplicate analysis first')
         latest = max(runs, key=lambda d: d['payload'].get('at', ''))
         run = latest['payload']; run['id'] = latest['id']
+        from .family_detection import create_families
         return {'created': create_families(store, run)}
 
     @app.get('/api/documents/{kind}')
@@ -304,16 +320,19 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.post('/api/benchmark')
     def benchmark(request: BenchmarkRequest, actor=Depends(identity)):
+        from .evaluation import create_benchmark
         manifest = create_benchmark(store, request.test_ids, request.validation_ids, request.auto, reviewer_id=actor)
         # Snapshots of every eligible record stay in the database; the response stays small.
         return {**{k: v for k, v in manifest.items() if k != 'records'}, 'record_count': len(manifest.get('records', []))}
 
     @app.post('/api/evaluate/{manifest_id}')
     def evaluate(manifest_id: str, body: EvaluateRequest, actor=Depends(identity)):
+        from .evaluation import evaluate_predictions
         return evaluate_predictions(store, manifest_id, body.predictions, body.human_scores, body.split)
 
     @app.post('/api/export/{manifest_id}')
     def training_export(manifest_id: str, actor=Depends(identity)):
+        from .export import build_training_export
         content, result = build_training_export(store, manifest_id)
         return Response(content, media_type='application/x-ndjson', headers={'Content-Disposition': 'attachment; filename="manhaj-training.jsonl"', 'X-Export-Id': result['export_id'], 'X-Content-SHA256': result['sha256']})
 
@@ -326,15 +345,20 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.post('/api/phase-two/enable')
     def enable(request: GateRequest, actor=Depends(identity)):
+        from .research import certify_phase_one
         return {'gate_id': certify_phase_one(store, actor, request.coverage_verified, request.notes)}
 
     @app.post('/api/research')
     def research(request: ResearchRequest, actor=Depends(identity), _=Depends(heavy)):
+        from .research import research_common_objections
         return research_common_objections(request.topic, request.limit, store, ROOT/'config/external_sources.json')
 
     app.mount('/static', StaticFiles(directory=ROOT/'web'), name='static')
+    index_html = (ROOT/'web/index.html').read_text(encoding='utf-8')
+    for asset in ('style.css', 'app.js'):
+        index_html = index_html.replace(f'/static/{asset}"', f'/static/{asset}?v={asset_version(ROOT/"web"/asset)}"')
 
     @app.get('/')
-    def index(): return FileResponse(ROOT/'web/index.html')
+    def index(): return Response(index_html, media_type='text/html; charset=utf-8')
 
     return app
