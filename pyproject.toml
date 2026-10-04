@@ -21,8 +21,8 @@ manhaj = "src.cli:main"
 entrypoint = "src.asgi:app"
 
 [tool.vercel.fastapi.static]
-# Keep web/ inside the function so security headers (CSP, nosniff, no-store) apply to every asset.
-cdn = false
+# Serve web/ from Vercel's CDN (vercel.json adds nosniff and long-lived caching; JS/CSS URLs are content-hashed).
+cdn = true
 
 [tool.setuptools.packages.find]
 include = ["src*"]

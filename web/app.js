@@ -7,7 +7,17 @@ let token=sessionStorage.getItem('manhaj-token')||'', view='overview', offset=0,
 const badge=s=>`<span class="pill ${s==='approved'?'':s==='rejected'?'rejected':'pending'}">${esc(statuses[s]||s)}</span>`;
 let noticeTimer;
 function notify(message){clearTimeout(noticeTimer);$('#notice').textContent=message;$('#notice').hidden=false;noticeTimer=setTimeout(()=>$('#notice').hidden=true,6500);}
-async function api(path, options={}){
+const cache=new Map(), CACHE_MS=60000;
+function api(path, options={}){
+ const get=!options.method||options.method==='GET';
+ if(!get||options.blob)return request(path,options).then(r=>{if(!get)cache.clear();return r;});
+ const hit=cache.get(path);
+ if(hit&&Date.now()-hit.at<CACHE_MS)return hit.promise;
+ const promise=request(path,options).catch(e=>{cache.delete(path);throw e;});
+ cache.set(path,{at:Date.now(),promise});
+ return promise;
+}
+async function request(path, options={}){
  const headers={Authorization:`Bearer ${token}`,...options.headers};
  if(options.body && !(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
  const response=await fetch('/api'+path,{...options,headers});
@@ -18,7 +28,7 @@ function title(name,subtitle,action=''){return `<div class="page-title"><div><di
 async function init(){
  if(titles[location.hash.slice(1)])view=location.hash.slice(1);
  if(!token)return;
- try{const me=await api('/me');taxonomy=me.taxonomy;caps=me.capabilities||{};$('#identity').textContent=me.reviewer_id+(caps.read_only?' · معاينة للقراءة فقط':'');$('#login').hidden=true;$('#content').hidden=false;await render();}
+ try{const me=await api('/me');taxonomy=me.taxonomy;caps=me.capabilities||{};$('#identity').textContent=me.reviewer_id+(caps.read_only?' · معاينة للقراءة فقط':'');$('#login').hidden=true;$('#content').hidden=false;await render();prefetch();}
  catch(e){if(e.status===401){sessionStorage.removeItem('manhaj-token');token='';}$('#login').hidden=false;$('#content').hidden=true;notify(e.status===401?e.message:'تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.');}
 }
 $('#login-form').addEventListener('submit',e=>{e.preventDefault();token=$('#token').value;sessionStorage.setItem('manhaj-token',token);$('#token').value='';init();});
@@ -29,19 +39,35 @@ $('#nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');i
 window.addEventListener('hashchange',()=>{const next=location.hash.slice(1);if(titles[next]&&token){view=next;offset=0;query='';status=null;render().catch(e=>notify(e.message));}});
 // On narrow screens the tabs scroll sideways: keep the active one centred without moving the page vertically.
 function centerTab(b){const n=b.parentElement;if(n.scrollWidth<=n.clientWidth)return;const nr=n.getBoundingClientRect(),br=b.getBoundingClientRect();n.scrollBy({left:br.left-nr.left-(nr.width-br.width)/2});}
+function recordsPath(name,start=0,q='',chosen=name==='review'?'needs_review':''){
+ const kind=name==='rules'?'rule':name==='families'?'family':name==='review'?'':'objection';
+ const phase=name==='external'?2:name==='objections'?1:'';
+ const params=new URLSearchParams({limit:'30',offset:String(start),q});if(kind)params.set('kind',kind);if(phase)params.set('phase',phase);if(chosen)params.set('status',chosen);
+ return '/records?'+params;
+}
+// After the first page appears, quietly load every tab's first page so switching tabs is instant.
+function prefetch(){
+ const run=()=>{for(const name of ['review','objections','rules','families','external'])api(recordsPath(name)).catch(()=>{});
+  for(const path of ['/sources','/documents/dataset_manifests','/documents/evaluation_runs','/documents/training_exports','/records?kind=rule&limit=200'])api(path).catch(()=>{});};
+ ('requestIdleCallback' in window)?requestIdleCallback(run,{timeout:1500}):setTimeout(run,600);
+}
 let renderSeq=0;
 const stale=seq=>seq!==renderSeq; // a slower response from a previous tab must not overwrite the current one
 
 async function render(){
  if(!token)return;
  renderSeq++;
+ const seq=renderSeq;$('#content').setAttribute('aria-busy','true');
+ setTimeout(()=>{if(!stale(seq))$('#content').classList.add('loading');},120);
  $('#breadcrumb').textContent=titles[view];
  document.querySelectorAll('[data-view]').forEach(b=>{const on=b.dataset.view===view;b.classList.toggle('active',on);if(on){b.setAttribute('aria-current','page');centerTab(b);}else b.removeAttribute('aria-current');});
- if(view==='overview')return overview();
- if(view==='sources')return sourcesView();
- if(view==='evaluation')return evaluationView();
- if(view==='export')return exportView();
- return recordsView();
+ try{
+  if(view==='overview')return await overview();
+  if(view==='sources')return await sourcesView();
+  if(view==='evaluation')return await evaluationView();
+  if(view==='export')return await exportView();
+  return await recordsView();
+ }finally{if(!stale(seq)){$('#content').classList.remove('loading');$('#content').removeAttribute('aria-busy');}}
 }
 async function overview(){
  const seq=renderSeq;
@@ -55,11 +81,8 @@ async function overview(){
 }
 async function recordsView(){
  const seq=renderSeq;
- const kind=view==='rules'?'rule':view==='families'?'family':view==='review'?'':'objection';
- const phase=view==='external'?2:view==='objections'?1:'';
  const chosen=status===null?(view==='review'?'needs_review':''):status;
- const params=new URLSearchParams({limit:'30',offset:String(offset),q:query});if(kind)params.set('kind',kind);if(phase)params.set('phase',phase);if(chosen)params.set('status',chosen);
- const data=await api('/records?'+params);
+ const data=await api(recordsPath(view,offset,query,chosen));
  if(!data.items.length&&offset>0&&offset>=data.total){offset=Math.max(0,Math.ceil(data.total/30)*30-30);return render();}
  let extra='';
  if(view==='external')extra=!caps.heavy_jobs?'<div class="banner">البحث الخارجي يعمل من سطر الأوامر فقط في النسخة المستضافة، وكل نتيجة تدخل قائمة المراجعة.</div>':`<div class="banner">البحث الخارجي يتطلب إنهاء مراجعة المرحلة الأولى وتوثيق التغطية؛ كل نتيجة تدخل قائمة المراجعة.</div><details class="card spaced"><summary>البحث في المصادر المسموح بها</summary><form id="research-form"><label for="research-topic">الموضوع</label><input id="research-topic" required><label for="research-limit">الحد الأقصى</label><input id="research-limit" type="number" min="1" max="50" value="5"><button class="primary spaced">جمع حالات موثقة</button></form><form id="gate-form"><label class="check"><input id="coverage-check" type="checkbox" required>أشهد باكتمال مراجعة جميع أمثلة وقواعد المصدر وفحص المقاطع غير المستخرجة.</label><label for="coverage-notes">تقرير تغطية المصدر</label><textarea id="coverage-notes" required></textarea><button class="spaced">توثيق اكتمال المرحلة الأولى</button></form></details>`;
