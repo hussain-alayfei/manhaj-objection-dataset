@@ -1,0 +1,31 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+.reviewer-token*
+.venv/
+venv/
+
+# Private source material and derived data (book text is not licensed for redistribution)
+*.pdf
+*.db
+*.db-*
+data/**/*.json
+data/**/*.jsonl
+data/**/*.png
+data/**/*.tmp
+!data/**/.gitkeep
+!data/**/README.md
+work/
+backups/
+
+# Tooling
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+.vercel/
+supabase/.temp/
+supabase/.branches/

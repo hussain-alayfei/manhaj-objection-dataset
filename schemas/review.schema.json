@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "expected_version": {
+      "minimum": 1,
+      "title": "Expected Version",
+      "type": "integer"
+    },
+    "action": {
+      "enum": [
+        "approve",
+        "edit",
+        "reject",
+        "reopen"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "changes": {
+      "additionalProperties": true,
+      "title": "Changes",
+      "type": "object"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "source_verified": {
+      "default": false,
+      "title": "Source Verified",
+      "type": "boolean"
+    },
+    "page_verified": {
+      "default": false,
+      "title": "Page Verified",
+      "type": "boolean"
+    },
+    "diagnosis_verified": {
+      "default": false,
+      "title": "Diagnosis Verified",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "expected_version",
+    "action"
+  ],
+  "title": "ReviewRequest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manhaj.local/schemas/review.schema.json"
+}

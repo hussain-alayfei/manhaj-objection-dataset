@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "Span": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_id": {
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "page_number": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Number"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "Span",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source_id": {
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_type": {
+      "default": "book",
+      "enum": [
+        "book",
+        "external"
+      ],
+      "title": "Source Type",
+      "type": "string"
+    },
+    "source_name": {
+      "title": "Source Name",
+      "type": "string"
+    },
+    "author": {
+      "default": "",
+      "title": "Author",
+      "type": "string"
+    },
+    "page_number": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Number"
+    },
+    "page_number_type": {
+      "default": "pdf_1_based",
+      "enum": [
+        "pdf_1_based",
+        "not_applicable"
+      ],
+      "title": "Page Number Type",
+      "type": "string"
+    },
+    "printed_page_number": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Printed Page Number"
+    },
+    "section": {
+      "default": "",
+      "title": "Section",
+      "type": "string"
+    },
+    "source_excerpt": {
+      "title": "Source Excerpt",
+      "type": "string"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "source_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Date"
+    },
+    "retrieved_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retrieved At"
+    },
+    "spans": {
+      "items": {
+        "$ref": "#/$defs/Span"
+      },
+      "minItems": 1,
+      "title": "Spans",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source_id",
+    "source_name",
+    "source_excerpt",
+    "spans"
+  ],
+  "title": "Citation",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manhaj.local/schemas/source.schema.json"
+}

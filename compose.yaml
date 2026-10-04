@@ -1,0 +1,47 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: manhaj
+      POSTGRES_USER: manhaj
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - ./supabase/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manhaj -d manhaj"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://manhaj:${POSTGRES_PASSWORD}@db:5432/manhaj
+      REVIEWER_TOKEN_HASHES: ${REVIEWER_TOKEN_HASHES:?Create reviewer token first}
+      LLM_PROVIDER: ${LLM_PROVIDER:-none}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DIAGNOSIS_MODEL: ${DIAGNOSIS_MODEL:-}
+      DIAGNOSIS_REASONING_EFFORT: ${DIAGNOSIS_REASONING_EFFORT:-low}
+      EXTRACTOR_MODEL: ${EXTRACTOR_MODEL:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-768}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["./data:/app/data"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+volumes:
+  pgdata:

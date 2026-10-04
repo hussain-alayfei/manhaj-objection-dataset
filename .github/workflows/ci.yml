@@ -1,0 +1,45 @@
+name: verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: manhaj_test
+          POSTGRES_USER: manhaj
+          POSTGRES_PASSWORD: integration-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U manhaj -d manhaj_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e '.[test]'
+      - name: Apply Supabase migrations to real PostgreSQL + pgvector
+        env:
+          PGPASSWORD: integration-only
+        run: |
+          # Match Supabase: pgvector types resolve through the `extensions` schema.
+          psql -h localhost -U manhaj -d manhaj_test -v ON_ERROR_STOP=1 -c 'ALTER ROLE manhaj SET search_path = "$user", public, extensions'
+          for f in supabase/migrations/*.sql; do
+            echo "applying $f"
+            psql -h localhost -U manhaj -d manhaj_test -1 -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Unit and real database integration tests
+        env:
+          TEST_POSTGRES_URL: postgresql+psycopg://manhaj:integration-only@localhost:5432/manhaj_test
+        run: pytest -q
+      - name: JSON Schemas and migration are generated from code
+        run: |
+          python scripts/generate_schemas.py && python scripts/generate_migration.py
+          git diff --exit-code schemas supabase/migrations

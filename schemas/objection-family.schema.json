@@ -1,0 +1,528 @@
+{
+  "$defs": {
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_type": {
+          "default": "book",
+          "enum": [
+            "book",
+            "external"
+          ],
+          "title": "Source Type",
+          "type": "string"
+        },
+        "source_name": {
+          "title": "Source Name",
+          "type": "string"
+        },
+        "author": {
+          "default": "",
+          "title": "Author",
+          "type": "string"
+        },
+        "page_number": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Number"
+        },
+        "page_number_type": {
+          "default": "pdf_1_based",
+          "enum": [
+            "pdf_1_based",
+            "not_applicable"
+          ],
+          "title": "Page Number Type",
+          "type": "string"
+        },
+        "printed_page_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Printed Page Number"
+        },
+        "section": {
+          "default": "",
+          "title": "Section",
+          "type": "string"
+        },
+        "source_excerpt": {
+          "title": "Source Excerpt",
+          "type": "string"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "source_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Date"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retrieved At"
+        },
+        "spans": {
+          "items": {
+            "$ref": "#/$defs/Span"
+          },
+          "minItems": 1,
+          "title": "Spans",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_name",
+        "source_excerpt",
+        "spans"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Comparison": {
+      "additionalProperties": false,
+      "properties": {
+        "entity_a": {
+          "title": "Entity A",
+          "type": "string"
+        },
+        "entity_b": {
+          "title": "Entity B",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entity_a",
+        "entity_b"
+      ],
+      "title": "Comparison",
+      "type": "object"
+    },
+    "Span": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_id": {
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "page_number": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Number"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "Span",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "central_claim_ar": {
+      "default": "",
+      "title": "Central Claim Ar",
+      "type": "string"
+    },
+    "subclaims_ar": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Subclaims Ar",
+      "type": "array"
+    },
+    "key_terms_ar": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Key Terms Ar",
+      "type": "array"
+    },
+    "compared_entities_ar": {
+      "items": {
+        "$ref": "#/$defs/Comparison"
+      },
+      "title": "Compared Entities Ar",
+      "type": "array"
+    },
+    "primary_pattern": {
+      "default": "unknown",
+      "enum": [
+        "جمع بين مختلفين",
+        "تفريق بين متماثلين",
+        "unknown",
+        "mixed_pattern",
+        "multiple_claims",
+        "insufficient_evidence",
+        "requires_human_review"
+      ],
+      "title": "Primary Pattern",
+      "type": "string"
+    },
+    "sub_patterns": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sub Patterns",
+      "type": "array"
+    },
+    "diagnostic_reason_ar": {
+      "default": "",
+      "title": "Diagnostic Reason Ar",
+      "type": "string"
+    },
+    "revealing_question_ar": {
+      "default": "",
+      "title": "Revealing Question Ar",
+      "type": "string"
+    },
+    "methodology_rule_ar": {
+      "default": "",
+      "title": "Methodology Rule Ar",
+      "type": "string"
+    },
+    "treatment_ar": {
+      "default": "",
+      "title": "Treatment Ar",
+      "type": "string"
+    },
+    "response_path_ar": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Response Path Ar",
+      "type": "array"
+    },
+    "methodology_rule_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Methodology Rule Ids",
+      "type": "array"
+    },
+    "requires_human_review": {
+      "default": true,
+      "title": "Requires Human Review",
+      "type": "boolean"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "family",
+      "type": "string"
+    },
+    "title_ar": {
+      "title": "Title Ar",
+      "type": "string"
+    },
+    "objection_text_ar": {
+      "default": "",
+      "title": "Objection Text Ar",
+      "type": "string"
+    },
+    "normalized_objection_ar": {
+      "default": "",
+      "title": "Normalized Objection Ar",
+      "type": "string"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Citation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "source_evidence": {
+      "additionalProperties": true,
+      "title": "Source Evidence",
+      "type": "object"
+    },
+    "ai_analysis": {
+      "additionalProperties": true,
+      "title": "Ai Analysis",
+      "type": "object"
+    },
+    "human_review": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Human Review"
+    },
+    "evidence_status": {
+      "default": "needs_review",
+      "enum": [
+        "source_backed",
+        "analytical_inference",
+        "needs_review"
+      ],
+      "title": "Evidence Status",
+      "type": "string"
+    },
+    "evidence_label_ar": {
+      "default": "يحتاج مراجعة",
+      "enum": [
+        "مدعوم من المصدر",
+        "استنتاج تحليلي",
+        "يحتاج مراجعة"
+      ],
+      "title": "Evidence Label Ar",
+      "type": "string"
+    },
+    "review_status": {
+      "default": "needs_review",
+      "enum": [
+        "draft",
+        "needs_review",
+        "approved",
+        "rejected"
+      ],
+      "title": "Review Status",
+      "type": "string"
+    },
+    "reviewer_notes": {
+      "default": "",
+      "title": "Reviewer Notes",
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    },
+    "added_by": {
+      "default": "extractor",
+      "title": "Added By",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "previous_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Previous Version"
+    },
+    "duplicate_group_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Duplicate Group Id"
+    },
+    "similarity_type": {
+      "default": "new_case",
+      "enum": [
+        "exact_duplicate",
+        "paraphrase",
+        "same_underlying_objection",
+        "same_pattern_different_objection",
+        "new_case"
+      ],
+      "title": "Similarity Type",
+      "type": "string"
+    },
+    "duplicate_candidates": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Duplicate Candidates",
+      "type": "array"
+    },
+    "family_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Family Id"
+    },
+    "family_title_ar": {
+      "default": "",
+      "title": "Family Title Ar",
+      "type": "string"
+    },
+    "core_claim_ar": {
+      "default": "",
+      "title": "Core Claim Ar",
+      "type": "string"
+    },
+    "core_confusion_ar": {
+      "default": "",
+      "title": "Core Confusion Ar",
+      "type": "string"
+    },
+    "common_variants_ar": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Common Variants Ar",
+      "type": "array"
+    },
+    "common_sub_patterns": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Common Sub Patterns",
+      "type": "array"
+    },
+    "methodology_rules": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Methodology Rules",
+      "type": "array"
+    },
+    "examples": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Examples",
+      "type": "array"
+    },
+    "phase": {
+      "default": 1,
+      "enum": [
+        1,
+        2
+      ],
+      "title": "Phase",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "title_ar"
+  ],
+  "title": "Record",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manhaj.local/schemas/objection-family.schema.json"
+}

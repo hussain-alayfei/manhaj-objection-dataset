@@ -1,0 +1,16 @@
+{
+  "sources": [],
+  "policy": "Disabled until source-based human review and source-coverage signoff. Add only legally usable public URLs with an affirmative terms review.",
+  "entry_schema_example": {
+    "enabled": false,
+    "domain": "example.org",
+    "urls": [],
+    "selector": "article p",
+    "automated_access_allowed": false,
+    "terms_url": "",
+    "rights_reviewed_by": "",
+    "license_basis": "",
+    "max_excerpt_chars": 600,
+    "min_interval_seconds": 2
+  }
+}

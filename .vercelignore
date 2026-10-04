@@ -1,0 +1,16 @@
+# Never upload private source material, local databases, or secrets with `vercel deploy`.
+data/
+work/
+backups/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.reviewer-token*
+*.pdf
+*.db
+*.db-*
+__pycache__/
+.pytest_cache/
+tests/
