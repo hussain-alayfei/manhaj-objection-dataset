@@ -165,3 +165,24 @@ def test_assets_are_cacheable_but_api_data_is_not(store):
     assert c.get('/static/app.js?v=abc').headers['cache-control'] == 'public, max-age=31536000, immutable'
     api = c.get('/api/me', headers=AUTH)
     assert api.headers['cache-control'] == 'no-store' and api.headers['server-timing'].startswith('app;dur=')
+
+
+def test_book_pages_endpoint_and_batch_signing(store):
+    pages = client(store).get('/api/sources/SRC-test/pages?start=1&count=4', headers=AUTH).json()
+    assert pages['page_count'] == 1 and [p['number'] for p in pages['pages']] == [1]
+
+    def handler(request):
+        body = json.loads(request.content)
+        return httpx.Response(200, json=[{'path': p, 'signedURL': f'/object/sign/sources/{p}?token=t', 'error': None} for p in body['paths']])
+    storage = SupabaseStorage('https://ref.supabase.co', 'sb_secret_test', 'sources', httpx.Client(transport=httpx.MockTransport(handler)))
+    signed = storage.signed_urls(['SRC-x/pages/0001.webp', 'SRC-x/pages/0002.webp'], 900)
+    assert signed['SRC-x/pages/0002.webp'] == 'https://ref.supabase.co/storage/v1/object/sign/sources/SRC-x/pages/0002.webp?token=t'
+
+
+def test_read_cache_is_cleared_by_writes(store):
+    calls = []
+    def compute():
+        calls.append(1); return len(calls)
+    assert store.cached('k', compute) == 1 and store.cached('k', compute) == 1
+    store.add(record('SHB-cache'))  # any write clears the cache
+    assert store.cached('k', compute) == 2

@@ -26,7 +26,7 @@ from .llm import llm_provider, validate_config
 from .models import ReviewRequest, SUBPATTERNS
 from .retrieval import HybridRetriever, refresh_embeddings
 from .retrieval.hybrid import SemanticEncoder
-from .storage import get_storage
+from .storage import get_storage, page_key
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger('manhaj.api')
@@ -117,6 +117,9 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     storage = storage or get_storage()
     store.register_reviewers(token_map)
     daily_limit = int(os.getenv('DIAGNOSE_DAILY_LIMIT', '0') or 0)
+    # Book pages load straight from private storage through short-lived signed URLs.
+    image_sources = "'self' blob: data:" + (f' {storage.url}' if storage.backend == 'supabase' else '')
+    csp = f"default-src 'self'; style-src 'self'; script-src 'self'; img-src {image_sources}; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     app = FastAPI(title='مَنْهَج', version='0.2.0', docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
 
@@ -155,7 +158,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
             response.headers['Cache-Control'] = 'no-cache'
         else:
             response.headers['Cache-Control'] = 'no-store'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' blob: data:; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        response.headers['Content-Security-Policy'] = csp
         return response
 
     app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -180,7 +183,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.get('/api/summary')
     def summary(actor=Depends(identity)):
-        counts = store.counts()
+        counts = store.cached('counts', store.counts)
         rows = [dict(r, kind=k) for k in ('objection', 'rule', 'family') for r in counts[k]]
         total = lambda pred: sum(r['n'] for r in rows if pred(r))
         return {'sources': counts['sources'], 'objections': total(lambda r: r['kind'] == 'objection'), 'rules': total(lambda r: r['kind'] == 'rule'), 'families': total(lambda r: r['kind'] == 'family'), 'approved': total(lambda r: r['status'] == 'approved'), 'pending': total(lambda r: r['status'] in ('draft', 'needs_review')), 'external': total(lambda r: r['phase'] == 2), 'semantic_enabled': bool(os.getenv('EMBEDDING_MODEL'))}
@@ -189,7 +192,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     def records(kind: str | None = None, status: str | None = None, phase: int | None = None, q: str = '', offset: int = 0, limit: int = 50, actor=Depends(identity)):
         if kind not in (None, 'rule', 'objection', 'family'): raise ValueError('Invalid kind')
         if offset < 0 or not 1 <= limit <= 200: raise ValueError('Invalid pagination')
-        if not q: return store.page(kind, status, phase, offset, limit)
+        if not q: return store.cached(('page', kind, status, phase, offset, limit), lambda: store.page(kind, status, phase, offset, limit))
         rows = [r for r in store.records(kind, status, phase) if q in r['title_ar'] or q in r['objection_text_ar'] or q in r['central_claim_ar']]
         return {'total': len(rows), 'items': rows[offset:offset+limit]}
 
@@ -211,12 +214,12 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.get('/api/sources')
     def source_list(actor=Depends(identity)):
-        return [{k: v for k,v in s.items() if k != 'pdf_path'} for s in store.source_list()]
+        return store.cached('sources', lambda: [{k: v for k, v in s.items() if k != 'pdf_path'} for s in store.source_list()])
 
     @app.get('/api/sources/{sid}/chunks')
     def source_chunks(sid: str, actor=Depends(identity)):
         # raw_text duplicates whole pages and is not shown in the UI.
-        return [{k: v for k, v in c.items() if k != 'raw_text'} for c in store.source_chunks(sid)]
+        return store.cached(('chunks', sid), lambda: [{k: v for k, v in c.items() if k != 'raw_text'} for c in store.source_chunks(sid)], 300)
 
     @app.post('/api/sources/{sid}/model-extract')
     def model_extract(sid: str, actor=Depends(identity), _=Depends(heavy)):
@@ -232,8 +235,29 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     def source_pdf_url(sid: str, actor=Depends(identity)):
         source_payload(sid)
         if storage.backend != 'supabase': return {'url': None}
-        try: return {'url': storage.signed_url(sid, 60), 'expires_in': 60}
+        try: return {'url': storage.signed_url(sid, 600), 'expires_in': 600}
         except KeyError: raise HTTPException(404, 'Original PDF not uploaded to storage')
+
+    @app.get('/api/sources/{sid}/pages')
+    def source_pages(sid: str, start: int = 1, count: int = 6, actor=Depends(identity)):
+        """Rendered page images for the in-site book viewer (signed for 15 minutes when stored remotely)."""
+        total = int(source_payload(sid).get('page_count') or 0)
+        if total < 1: raise HTTPException(404, 'Book pages are not available')
+        start, count = max(1, min(start, total)), max(1, min(count, 12))
+        numbers = list(range(start, min(total, start + count - 1) + 1))
+        if storage.backend == 'supabase':
+            signed = storage.signed_urls([page_key(sid, n) for n in numbers], 900)
+            pages = [{'number': n, 'url': signed.get(page_key(sid, n))} for n in numbers]
+        else:
+            pages = [{'number': n, 'url': f'/api/sources/{sid}/page-image/{n}' if storage.page_path(sid, n).is_file() else None} for n in numbers]
+        return {'page_count': total, 'pages': pages}
+
+    @app.get('/api/sources/{sid}/page-image/{number}')
+    def page_image(sid: str, number: int, actor=Depends(identity)):
+        if storage.backend != 'local': raise HTTPException(409, 'Use /pages for stored page images')
+        path = storage.page_path(sid, number)
+        if not path.is_file(): raise HTTPException(404, 'Page image not rendered; run scripts/render_source_pages.py')
+        return FileResponse(path, media_type='image/webp')
 
     @app.get('/api/sources/{sid}/pdf')
     def source_pdf(sid: str, actor=Depends(identity)):
