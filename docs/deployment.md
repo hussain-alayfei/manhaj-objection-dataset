@@ -96,6 +96,7 @@ mkdir -p work && cp data/source/SRC-e209f0cca8a26244/original.pdf work/book.pdf 
 python scripts/seed_book.py work/book.pdf
 python scripts/verify_dataset.py
 python scripts/upload_source_pdf.py SRC-e209f0cca8a26244
+python scripts/render_source_pages.py SRC-e209f0cca8a26244   # صور الصفحات لعارض الكتاب داخل الموقع
 python -m src.cli embeddings --include-drafts
 ```
 

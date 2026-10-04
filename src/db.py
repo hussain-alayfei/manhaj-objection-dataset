@@ -5,6 +5,8 @@ import copy
 import hashlib
 import json
 import os
+import threading
+import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -73,11 +75,17 @@ class Store:
             opts['connect_args'] = {'prepare_threshold': None, 'connect_timeout': 15, 'keepalives': 1, 'keepalives_idle': 30, 'keepalives_interval': 10, 'keepalives_count': 5}
             if host.endswith(('.supabase.com', '.supabase.co')) and 'sslmode' not in parsed.query:
                 opts['connect_args']['sslmode'] = 'require'
-            if parsed.port == 6543 or os.getenv('VERCEL'):
-                opts['poolclass'] = NullPool  # the external pooler owns connection reuse
+            if os.getenv('VERCEL'):
+                # Fluid compute reuses warm instances: keep one or two pooler connections open instead of
+                # paying a new TCP+TLS handshake per request; pre-ping replaces connections the pooler closed.
+                opts.update(pool_pre_ping=True, pool_size=1, max_overflow=4, pool_recycle=60)
+            elif parsed.port == 6543:
+                opts['poolclass'] = NullPool
             else:
                 opts.update(pool_pre_ping=True, pool_size=2, max_overflow=3)
         self.engine = create_engine(url, **opts)
+        self._cache, self._cache_lock = {}, threading.Lock()
+        self.cache_seconds = float(os.getenv('READ_CACHE_SECONDS', '10'))
         if url.startswith('sqlite'):
             @event.listens_for(self.engine, 'connect')
             def configure(dbapi, _):
@@ -90,15 +98,34 @@ class Store:
                 if not inspect(c).has_table('semantic_vectors'):
                     raise RuntimeError('Database schema missing: apply supabase/migrations before starting the app')
 
+    def cached(self, key, compute, seconds=None):
+        """Short in-process cache for list/summary reads; every write in this process clears it.
+        Other server instances see a change within `cache_seconds`."""
+        ttl = self.cache_seconds if seconds is None else seconds
+        if ttl <= 0: return compute()
+        now_ = time.monotonic()
+        with self._cache_lock:
+            hit = self._cache.get(key)
+            if hit and now_ - hit[0] < ttl: return copy.deepcopy(hit[1])
+        value = compute()
+        with self._cache_lock: self._cache[key] = (now_, value)
+        return copy.deepcopy(value)
+
+    def clear_cache(self):
+        with self._cache_lock: self._cache.clear()
+
     @contextmanager
     def transaction(self):
-        with self.engine.begin() as conn:
-            if self.engine.dialect.name == 'sqlite':
-                conn.exec_driver_sql('BEGIN IMMEDIATE')
-            else:
-                # Serialize write/governance operations, including phase and export gates.
-                conn.exec_driver_sql('SELECT pg_advisory_xact_lock(731905)')
-            yield conn
+        try:
+            with self.engine.begin() as conn:
+                if self.engine.dialect.name == 'sqlite':
+                    conn.exec_driver_sql('BEGIN IMMEDIATE')
+                else:
+                    # Serialize write/governance operations, including phase and export gates.
+                    conn.exec_driver_sql('SELECT pg_advisory_xact_lock(731905)')
+                yield conn
+        finally:
+            self.clear_cache()
 
     def get(self, record_id, conn=None):
         if conn is None:

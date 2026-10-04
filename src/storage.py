@@ -17,6 +17,13 @@ def object_key(source_id):
     return f'{source_id}/original.pdf'
 
 
+def page_key(source_id, number):
+    """Rendered page image used by the in-site book viewer (1-based PDF page number)."""
+    object_key(source_id)
+    if not isinstance(number, int) or number < 1: raise ValueError('Invalid page number')
+    return f'{source_id}/pages/{number:04d}.webp'
+
+
 class LocalStorage:
     backend = 'local'
 
@@ -26,6 +33,9 @@ class LocalStorage:
     def path(self, source_id, legacy_path=''):
         portable = self.root / object_key(source_id)
         return portable if portable.is_file() else Path(legacy_path or '')
+
+    def page_path(self, source_id, number):
+        return self.root / page_key(source_id, number)
 
 
 class SupabaseStorage:
@@ -46,9 +56,24 @@ class SupabaseStorage:
         return f'{self.url}/storage/v1/object/{quote(self.bucket)}/{quote(key)}'
 
     def upload(self, source_id, data: bytes, upsert=False):
-        response = self.client.post(self._object(object_key(source_id)), content=data, headers=self._headers({'Content-Type': 'application/pdf', 'x-upsert': 'true' if upsert else 'false'}))
+        return self.upload_object(object_key(source_id), data, 'application/pdf', upsert)
+
+    def upload_object(self, key, data: bytes, content_type, upsert=False):
+        response = self.client.post(self._object(key), content=data, headers=self._headers({'Content-Type': content_type, 'x-upsert': 'true' if upsert else 'false', 'cache-control': 'max-age=31536000'}))
         response.raise_for_status()
-        return object_key(source_id)
+        return key
+
+    def signed_urls(self, keys, expires_in=600):
+        """Sign many objects in one request (book viewer pages)."""
+        if not keys: return {}
+        response = self.client.post(f'{self.url}/storage/v1/object/sign/{quote(self.bucket)}', json={'expiresIn': expires_in, 'paths': list(keys)}, headers=self._headers())
+        response.raise_for_status()
+        out = {}
+        for item in response.json():
+            signed = item.get('signedURL') or item.get('signedUrl')
+            if signed and not item.get('error'):
+                out[item['path']] = signed if signed.startswith('http') else f'{self.url}/storage/v1{signed}'
+        return out
 
     def signed_url(self, source_id, expires_in=60):
         key = object_key(source_id)
