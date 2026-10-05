@@ -100,6 +100,190 @@ class AnalysisProposal(Strict):
         return Analysis(**data, methodology_rule_ar='', requires_human_review=True)
 
 
+# ---------- The eleven-step method: how Manhaj thinks when an objection arrives ----------
+# Provider-facing and strict (every field required, no defaults). The keys are generated in this
+# order, so the model works through the steps in sequence; step 10 (the critical reviewer) is a
+# separate call that reads the finished draft.
+TextKind = Literal['آية', 'حديث', 'أثر', 'قول عالم']
+Collection = Literal['bukhari', 'muslim', 'abudawud', 'tirmidhi', 'nasai', 'ibnmajah', 'malik', 'other', 'none']
+TextStatus = Literal['ثابت', 'مختلف في ثبوته', 'غير ثابت', 'لم يُعرف مصدره']
+Dimension = Literal['معنى اللفظ في لغة العرب', 'استعماله زمن النص', 'السياق', 'الحقيقة والمجاز', 'العموم والخصوص', 'الإطلاق والتقييد',
+                    'دلالات الأعداد', 'التكثير والمبالغة', 'الاشتراك اللفظي', 'الكناية', 'الحذف', 'أساليب الخطاب']
+ComparisonCheck = Literal['جمع بين مختلفين', 'تفريق بين متماثلين', 'عام وخاص', 'مطلق ومقيد', 'حصر أم تكثير', 'سياق مختلف', 'واقعة مختلفة', 'صحة متساوية']
+Answer3 = Literal['نعم', 'لا', 'محتمل']
+Verdict = Literal['مدعوم بالدليل', 'مرفوض', 'محتمل']
+ConfidenceLabel = Literal['قطعي', 'راجح', 'توجيه معتبر غير قطعي', 'محتمل يحتاج نظرًا', 'ضعيف']
+METHOD_STEPS = ('step1_framing', 'step2_entities', 'step3_sources', 'step4_related', 'step5_language', 'step6_comparison',
+                'governing_rules', 'step7_hypotheses', 'step8_tests', 'step9_map', 'step11_answer')
+
+
+class TextRef(Strict):
+    kind: TextKind
+    quote: str = Field(description='لفظ النص كما ورد، دون زيادة ولا تصرف')
+    surah: int = Field(description='رقم السورة إن كان آية، وإلا 0')
+    ayah: int = Field(description='رقم الآية إن كان آية، وإلا 0')
+    collection: Collection = Field(description='الكتاب الذي خرّج الحديث إن كنت متيقنًا، وإلا none')
+    number: int = Field(description='رقم الحديث في ذلك الكتاب إن كنت متيقنًا منه، وإلا 0')
+    source_ar: str = Field(description='التخريج المختصر كما تعرفه يقينًا، أو: لم يُعرف مصدره')
+    grade_ar: str = Field(description='درجته عند أهل الحديث إن عُرفت، وإلا فارغ')
+    status: TextStatus
+
+
+class Framing(Strict):
+    claim: str = Field(description='الدعوى في جملة واحدة كما يقصدها السائل')
+    evidence: list[str] = Field(description='ما استدل به السائل، بلفظه')
+    conclusion: str = Field(description='النتيجة التي يريد الوصول إليها')
+    premises: list[str] = Field(description='المقدمات الصريحة في كلامه')
+    hidden_assumption: str = Field(description='الافتراض الخفي الذي تقوم عليه الشبهة ولم يصرّح به')
+
+
+class Entities(Strict):
+    verses: list[str]
+    hadiths: list[str]
+    key_words: list[str]
+    numbers: list[str]
+    persons: list[str]
+    events: list[str]
+    rulings: list[str]
+    terms: list[str]
+    claims: list[str] = Field(description='ادعاءات تاريخية أو علمية')
+
+
+class SourceCheck(Strict):
+    texts: list[TextRef] = Field(description='كل نص تقوم عليه الشبهة، مع درجة ثبوته')
+    variants: str = Field(description='اختلاف الروايات وتمييز كل رواية بمصدرها، أو فارغ')
+
+
+class Related(Strict):
+    issue: str = Field(description='المسألة التي يدور عليها الباب، في عبارة قصيرة')
+    other_texts: list[TextRef] = Field(description='نصوص أخرى في الباب تعرفها يقينًا')
+    narrations: list[str]
+    scholars: list[str] = Field(description='معنى ما قرره أهل العلم، مع اسم العالم أو الكتاب إن كنت متيقنًا')
+    language: list[str]
+    usul: list[str]
+    context: list[str]
+
+
+class Finding(Strict):
+    dimension: Dimension
+    finding: str
+
+
+class Language(Strict):
+    findings: list[Finding] = Field(description='الجوانب المؤثرة في فهم النص وحدها')
+
+
+class Answered(Strict):
+    answer: Answer3
+    why: str
+
+
+class CheckNote(Strict):
+    check: ComparisonCheck
+    finding: str
+
+
+class SemanticComparison(Strict):
+    side_a: str
+    side_b: str
+    same_thing: Answered
+    same_aspect: Answered
+    same_meaning: Answered
+    checks: list[CheckNote] = Field(description='الاعتبارات المؤثرة في هذه المقارنة وحدها')
+    conclusion: str
+
+
+class Governing(Strict):
+    primary_pattern: Pattern
+    sub_patterns: list[SubPattern]
+    fault: str = Field(description='موضع الخلل في عبارة قصيرة')
+    explanation: str = Field(description='بيان الخلل في جملة واحدة')
+    methodology_rule_ids: list[str] = Field(description='معرفات القواعد المرفقة التي يقوم عليها التشخيص')
+
+
+class Hypothesis(Strict):
+    id: str = Field(description='H1، H2، ...')
+    title: str
+    basis: str = Field(description='لماذا طُرحت هذه الفرضية')
+
+
+class HypothesisTest(Strict):
+    id: str
+    verdict: Verdict
+    evidence: str = Field(description='الدليل الذي يدعمها، أو سبب استبعادها')
+
+
+class ArgumentMap(Strict):
+    objection: str
+    hidden_assumption: str
+    fault: str
+    evidence: str
+    rule: str
+    resolution: str = Field(description='إزالة التعارض')
+    conclusion: str
+
+
+class Dismantle(Strict):
+    step: str
+    evidence: str
+
+
+class Answer(Strict):
+    summary: str = Field(description='خلاصة الشبهة')
+    origin: str = Field(description='منشأ الإشكال')
+    dismantling: list[Dismantle] = Field(description='تفكيك الشبهة خطوة خطوة، ولكل خطوة دليلها')
+    sources: list[str] = Field(description='الأدلة والمصادر التي بُني عليها الجواب')
+    disagreement: str = Field(description='الخلاف المعتبر في المسألة إن وُجد، وإلا فارغ')
+    revealing_question: str = Field(description='سؤال واحد يكشف للسائل موضع الخلل')
+    confidence: float
+    confidence_label: ConfidenceLabel
+
+
+class MethodProposal(Strict):
+    step1_framing: Framing
+    step2_entities: Entities
+    step3_sources: SourceCheck
+    step4_related: Related
+    step5_language: Language
+    step6_comparison: SemanticComparison
+    governing_rules: Governing
+    step7_hypotheses: list[Hypothesis]
+    step8_tests: list[HypothesisTest]
+    step9_map: ArgumentMap
+    step11_answer: Answer
+
+    def to_analysis(self) -> Analysis:
+        """The record-shaped summary that history, review and export already understand."""
+        f, g, c, a = self.step1_framing, self.governing_rules, self.step6_comparison, self.step11_answer
+        allowed = SUBPATTERNS.get(g.primary_pattern, sum(SUBPATTERNS.values(), []))
+        return Analysis(
+            central_claim_ar=f.claim, subclaims_ar=[*f.premises, *([f.hidden_assumption] if f.hidden_assumption.strip() else [])],
+            key_terms_ar=[*self.step2_entities.key_words, *self.step2_entities.terms],
+            compared_entities_ar=[Comparison(entity_a=c.side_a, entity_b=c.side_b)] if c.side_a.strip() and c.side_b.strip() else [],
+            primary_pattern=g.primary_pattern, sub_patterns=[p for p in dict.fromkeys(g.sub_patterns) if p in allowed],
+            diagnostic_reason_ar=' '.join(x for x in (g.fault.strip(), g.explanation.strip()) if x), revealing_question_ar=a.revealing_question,
+            treatment_ar=self.step9_map.resolution, response_path_ar=[d.step for d in a.dismantling],
+            methodology_rule_ids=list(dict.fromkeys(g.methodology_rule_ids)), confidence=min(1.0, max(0.0, a.confidence)),
+            methodology_rule_ar='', requires_human_review=True)
+
+
+class CriticCheck(Strict):
+    ok: bool = Field(description='true إذا سلم الجواب من هذا الخلل')
+    note: str
+
+
+class CriticReport(Strict):
+    """Step 10: a second layer that objects to the draft before anything is shown."""
+    misunderstood: CriticCheck = Field(description='هل أسأنا فهم الشبهة؟')
+    evidence_proves: CriticCheck = Field(description='هل الدليل يثبت النتيجة فعلًا؟')
+    contrary_text: CriticCheck = Field(description='هل يوجد نص يعارض الجواب؟')
+    unsourced_attribution: CriticCheck = Field(description='هل نُسب قولٌ لعالم دون مصدر؟')
+    possibility_as_certainty: CriticCheck = Field(description='هل جُعل الاحتمال يقينًا؟')
+    stronger_explanation: CriticCheck = Field(description='هل يوجد تفسير أقوى؟')
+    holds: bool = Field(description='هل يصمد الجواب؟')
+    revision: str = Field(description='ما يجب تصحيحه إن لم يصمد، وإلا فارغ')
+
+
 class Record(Analysis):
     id: str
     kind: Literal['objection', 'rule', 'family']
