@@ -547,7 +547,8 @@ body.nav-collapsed .account-chip{justify-content:center;padding:8px 0}
 .segmented label{display:inline-flex;margin:0 0 0 0;font-weight:400}
 .segmented{display:flex;flex-wrap:wrap;gap:0}
 .segmented legend{width:100%}
-.segmented input{position:absolute;opacity:0;pointer-events:none}
+.segmented input{position:absolute;inset:0;width:1px;height:1px;margin:0;opacity:0;pointer-events:none}
+.segmented label{position:relative}
 .segmented span{padding:8px 16px;border:1px solid #d3dbd1;background:#fff;font-size:13.5px;cursor:pointer;transition:background-color var(--fade),color var(--fade)}
 .segmented label:first-of-type span{border-radius:0 10px 10px 0}
 .segmented label:last-of-type span{border-radius:10px 0 0 10px;border-right:0}
