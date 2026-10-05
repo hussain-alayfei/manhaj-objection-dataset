@@ -8,7 +8,7 @@ import os
 import threading
 import time
 import uuid
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -606,7 +606,8 @@ class Store:
         t = documents['diagnoses']
         with self.reader.connect() as c:
             analyses = c.execute(select(func.count()).select_from(t).where(t.c.payload['requested_by'].as_string() == reviewer_id)).scalar_one()
-            actions = dict(c.execute(select(reviews.c.payload['action'].as_string(), func.count()).where(reviews.c.reviewer_id == reviewer_id).group_by(reviews.c.payload['action'].as_string())).all())
+            # counted in Python: grouping by a JSON expression repeats its bound key, which Postgres rejects
+            actions = Counter(c.execute(select(reviews.c.payload['action'].as_string()).where(reviews.c.reviewer_id == reviewer_id)).scalars())
         return {'analyses': analyses, 'reviews': sum(actions.values()), 'approved': actions.get('approve', 0), 'edited': actions.get('edit', 0), 'rejected': actions.get('reject', 0)}
 
     def history(self, rid, full=False):

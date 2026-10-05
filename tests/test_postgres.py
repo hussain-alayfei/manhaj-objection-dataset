@@ -57,5 +57,7 @@ def test_postgres_slim_lists_counts_and_history():
     assert item['sub_patterns']==['اختلاف المعنى'] and item['source']['page_number']==1 and item['review_status']=='approved'
     assert any(r['n']>=1 for r in store.counts()['objection'])
     assert store.history(rid)[-1]['snapshot']=={'version':2}
+    assert store.activity('expert')['approved']>=1
+    assert store.my_diagnoses('nobody')['total']==0
     assert store.get(rid)['id']==rid
     with store.engine.connect() as c: assert rid in store.get_many([rid], c)
