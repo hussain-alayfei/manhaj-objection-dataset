@@ -285,7 +285,9 @@ body[data-mode=app] #app{animation:fade-in .3s ease-out both}
 .land-actions .quiet{font-size:15px}
 .land-hero{position:relative;padding:40px 0 96px;isolation:isolate}
 /* the study photograph, blurred and veiled in the page colour, fading out at the bottom: depth without edges */
-.land-hero::before{content:"";position:absolute;inset:-88px 0 0;z-index:-1;background:linear-gradient(to bottom,#f6f5f0d9 0%,#f6f5f0c7 55%,var(--bg) 100%),url(/static/img/hero-blur.webp) center 40%/cover no-repeat}
+.land-hero::before{content:"";position:absolute;inset:-88px 0 0;z-index:-1;background:linear-gradient(to bottom,#f6f5f0bf 0%,#f6f5f0a8 45%,#f6f5f0e6 78%,var(--bg) 96%),url(/static/img/hero-blur.webp) center 40%/cover no-repeat}
+/* the header sits above the hero's backdrop */
+.land-bar{position:relative;z-index:2}
 .hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
 .land-copy{max-width:540px}
 .principle{margin:0}
