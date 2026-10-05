@@ -119,6 +119,9 @@ $('#auth-form').addEventListener('submit',async e=>{
  }catch(err){error.textContent=err.message;error.hidden=false;}
  finally{submit.disabled=false;submit.classList.remove('busy');}
 });
+// Landing header: clear over the photograph, solid once the page scrolls.
+const landBar=$('.land-bar'),solidBar=()=>landBar.classList.toggle('solid',window.scrollY>12);
+window.addEventListener('scroll',solidBar,{passive:true});solidBar();
 // The landing wordmark returns to the top.
 $('.land-brand').addEventListener('click',e=>{e.preventDefault();window.scrollTo({top:0});});
 
