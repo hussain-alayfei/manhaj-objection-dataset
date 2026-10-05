@@ -577,15 +577,20 @@ class Store:
         with self.reader.connect() as c:
             row = c.execute(select(accounts.c.email, accounts.c.payload, accounts.c.password_hash).where(accounts.c.id == account_id)).first()
         if row is None: raise KeyError(account_id)
-        return {'id': account_id, 'email': row.email, 'name': row.payload.get('name', ''), 'created_at': row.payload.get('created_at'), 'password_hash': row.password_hash}
+        return {'id': account_id, 'email': row.email, 'name': row.payload.get('name', ''), 'created_at': row.payload.get('created_at'), 'password_hash': row.password_hash, 'avatar': row.payload.get('avatar')}
 
-    def update_account(self, account_id, name=None, email=None, password_hash=None, keep_session=None):
+    def update_account(self, account_id, name=None, email=None, password_hash=None, keep_session=None, avatar=None):
         with self.engine.begin() as c:
             row = c.execute(select(accounts.c.payload).where(accounts.c.id == account_id)).first()
             if row is None: raise KeyError(account_id)
             values = {}
+            payload = dict(row.payload)
+            if avatar is not None:
+                if avatar: payload['avatar'] = avatar
+                else: payload.pop('avatar', None)
+                values['payload'] = payload
             if name is not None:
-                values['payload'] = dict(row.payload, name=name)
+                values['payload'] = dict(payload, name=name)
                 reviewer = c.execute(select(reviewers.c.payload).where(reviewers.c.id == account_id)).first()
                 if reviewer is not None: c.execute(update(reviewers).where(reviewers.c.id == account_id).values(payload=dict(reviewer.payload or {}, name=name)))
             if email is not None: values['email'] = email
