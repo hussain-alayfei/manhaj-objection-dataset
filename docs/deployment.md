@@ -84,6 +84,8 @@ python scripts/create_reviewer.py reviewer-03 --env-file .env.production.local -
 | `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `openai` / `text-embedding-3-small` / `768` | نفسه |
 | `STORAGE_BACKEND` / `SUPABASE_URL` / `SUPABASE_SECRET_KEY` / `SUPABASE_STORAGE_BUCKET` | `supabase` / رابط المشروع / المفتاح السري / `sources` | `local` (دون المفتاح السري) |
 | `DIAGNOSE_DAILY_LIMIT` | `50` | `10` |
+| `SIGNUP_ENABLED` | `1` (أي شخص ينشئ حسابًا ويراجع) | `1` |
+| `ADMIN_EMAILS` | بريد مسؤول المشروع، مفصولًا بفواصل | — |
 
 ملف `.env` المحلي يحمل القيم نفسها، لكن `DATABASE_URL` على session pooler `:5432`. **النسخة المحلية من الموقع تعمل للقراءة فقط تلقائيًا** عندما تشير إلى قاعدة بعيدة (الإنتاج)، لأن الاعتماد وسجل التدقيق لا يُحذفان؛ للكتابة المقصودة اضبط `ALLOW_REMOTE_WRITES=1` مؤقتًا. أوامر سطر الأوامر (`seed_book.py` و`upload_source_pdf.py` و`src.cli`) تكتب عمدًا، فشغّلها فقط وأنت تقصد الإنتاج.
 
@@ -113,6 +115,7 @@ python -m src.cli embeddings --include-drafts
 ## العمل المستمر
 
 - **قاعدة البيانات:** `npx supabase migration new <name>` ← SQL متوافق مع الإصدار السابق ← PR (يطبق CI الهجرات على Postgres + pgvector حقيقي) ← ← `npx supabase db push` قبل دمج الكود ← مستشار MCP.
-- **مراجع جديد:** `create_reviewer.py ... --env-file .env.production.local --token-out ...` ← حدّث `REVIEWER_TOKEN_HASHES` في Vercel ← أعد النشر.
+- **مراجع جديد:** ينشئ حسابه بنفسه من صفحة البداية (الاسم والبريد وكلمة المرور). الحسابات تراجع وتعتمد؛ التصدير وإنشاء مجموعات الاختبار وتوثيق المراحل لمسؤول المشروع فقط (رمز تشغيل من `create_reviewer.py`، أو بريد مُدرج في `ADMIN_EMAILS`). لإيقاف التسجيل: `SIGNUP_ENABLED=0`.
+- **رمز تشغيل (للأوامر والمسؤول):** `create_reviewer.py ... --env-file .env.production.local --token-out ...` ← حدّث `REVIEWER_TOKEN_HASHES` في Vercel ← أعد النشر.
 - **مهام ثقيلة:** محليًا عبر `python -m src.cli` على Supabase.
 - **نسخ احتياطي أسبوعي:** `npx supabase db dump --linked -f backups/$(date +%F).sql`.

@@ -188,7 +188,7 @@ def test_read_cache_is_cleared_by_writes(store):
     assert store.cached('k', compute) == 2
 
 
-def test_public_access_needs_no_login_but_tokens_still_identify(store):
+def test_public_access_needs_no_login_but_visitors_cannot_write(store):
     store.add(record())
     c = client(store, public_access=True)
     me = c.get('/api/me').json()
@@ -198,7 +198,8 @@ def test_public_access_needs_no_login_but_tokens_still_identify(store):
     assert c.get('/api/records').status_code == 200
     rid = c.get('/api/records').json()['items'][0]['id']
     saved = c.post(f'/api/records/{rid}/review', json={'expected_version': 1, 'action': 'edit', 'changes': {'central_claim_ar': 'تحرير'}})
-    assert saved.status_code == 200, saved.text
+    assert saved.status_code == 403  # visitors may look and try a diagnosis, never change reviews
+    assert c.post('/api/benchmark', json={'test_ids': ['x']}).status_code == 403
 
 
 def test_login_still_required_without_public_access(store):

@@ -10,16 +10,17 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 
 import time
 
+from . import auth
 from .classification import diagnose
 from .db import Conflict, Store, normalize_database_url, sources
 from .llm import llm_provider, validate_config
@@ -42,6 +43,29 @@ def asset_version(path):
 
 
 DOCUMENT_KINDS = ('dataset_manifests', 'evaluation_runs', 'extraction_runs', 'duplicate_runs', 'training_exports', 'phase_gates', 'source_items')
+
+
+class SignupRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: str = Field(max_length=200)
+    email: str = Field(max_length=320)
+    password: str = Field(max_length=400)
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    email: str = Field(max_length=320)
+    password: str = Field(max_length=400)
+
+
+def bearer(authorization):
+    return authorization[7:].strip() if authorization and authorization.startswith('Bearer ') else ''
+
+
+def client_key(request):
+    """Who is asking, for throttling only: the client address, hashed so raw IPs are never stored."""
+    ip = request.headers.get('x-real-ip') or request.headers.get('x-forwarded-for', '').split(',')[0] or (request.client.host if request.client else '')
+    return 'ip:' + hashlib.sha256(ip.strip().encode()).hexdigest()[:24]
 
 
 class DiagnoseRequest(BaseModel):
@@ -123,20 +147,42 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     storage = storage or get_storage()
     store.register_reviewers([*token_map, *([PUBLIC_REVIEWER] if public_access else [])])
     daily_limit = int(os.getenv('DIAGNOSE_DAILY_LIMIT', '0') or 0)
+    # Accounts: anyone may sign up as a reviewer. Project-wide actions (exports, benchmarks, phase gates,
+    # index rebuilds) stay with operator tokens and with accounts listed in ADMIN_EMAILS.
+    signup_open = os.getenv('SIGNUP_ENABLED', '1').strip().lower() not in ('0', 'false', 'no')
+    admin_emails = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
     # Book pages load straight from private storage through short-lived signed URLs.
     image_sources = "'self' blob: data:" + (f' {storage.url}' if storage.backend == 'supabase' else '')
     csp = f"default-src 'self'; style-src 'self'; script-src 'self'; img-src {image_sources}; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     app = FastAPI(title='مَنْهَج', version='0.2.0', docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
 
-    def identity(authorization: Annotated[str | None, Header()] = None):
-        if authorization and authorization.startswith('Bearer ') and len(authorization) > 7:
-            digest = hashlib.sha256(authorization[7:].encode()).hexdigest()
+    def identity(request: Request, authorization: Annotated[str | None, Header()] = None):
+        token = bearer(authorization)
+        if token:
+            digest = hashlib.sha256(token.encode()).hexdigest()
             for rid, expected in token_map.items():
-                if hmac.compare_digest(expected, digest): return rid
-            if not public_access: raise HTTPException(401, 'Invalid reviewer token')
-        if public_access: return PUBLIC_REVIEWER
-        raise HTTPException(401, 'Reviewer authentication required')
+                if hmac.compare_digest(expected, digest):
+                    request.state.role, request.state.name = 'admin', rid
+                    return rid
+            account = store.session_account(token) if len(token) <= 256 else None
+            if account:
+                request.state.role = 'admin' if account['email'] in admin_emails else 'reviewer'
+                request.state.name = account['name']
+                return account['id']
+            if not public_access: raise HTTPException(401, 'انتهت الجلسة. سجّل الدخول من جديد.')
+        if public_access:
+            request.state.role, request.state.name = 'visitor', 'زائر'
+            return PUBLIC_REVIEWER
+        raise HTTPException(401, 'سجّل الدخول للمتابعة.')
+
+    def reviewer(request: Request, actor=Depends(identity)):
+        if request.state.role == 'visitor': raise HTTPException(403, 'أنشئ حسابًا لتتمكن من الحفظ.')
+        return actor
+
+    def admin(request: Request, actor=Depends(identity)):
+        if request.state.role != 'admin': raise HTTPException(403, 'هذا الإجراء لمسؤول المشروع فقط.')
+        return actor
 
     def heavy():
         if not heavy_allowed: raise HTTPException(409, CLI_ONLY)
@@ -151,7 +197,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         origin = request.headers.get('origin')
         if origin is not None and not same_origin(request, origin):
             return JSONResponse({'detail': 'Cross-origin request blocked'}, status_code=403)
-        if read_only and request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path != '/api/diagnose':
+        if read_only and request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path not in ('/api/diagnose', '/api/auth/login', '/api/auth/logout'):
             return JSONResponse({'detail': 'نسخة معاينة للقراءة فقط'}, status_code=403)
         started = time.perf_counter()
         response = await call_next(request)
@@ -185,9 +231,39 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         with store.engine.connect() as c: c.execute(select(1))
         return {'status': 'ok', 'service': 'manhaj'}
 
+    @app.post('/api/auth/signup', status_code=201)
+    def signup(body: SignupRequest, request: Request):
+        if not signup_open: raise HTTPException(403, 'التسجيل مغلق حاليًا. تواصل مع مسؤول المشروع.')
+        name, email = auth.clean_name(body.name), auth.clean_email(body.email)
+        auth.check_new_password(body.password, email)
+        who = client_key(request)
+        if store.count_events('signup', who, auth.now_s() - 3600) >= 5: raise HTTPException(429, 'محاولات كثيرة من هذا الجهاز. حاول بعد ساعة.')
+        account_id = store.create_account(name, email, auth.hash_password(body.password))
+        store.add_event('signup', who)
+        return {'token': store.create_session(account_id, auth.SESSION_DAYS), 'name': name}
+
+    @app.post('/api/auth/login')
+    def login(body: LoginRequest, request: Request):
+        email = (body.email or '').strip().lower()
+        by_email, by_client, since = 'email:' + hashlib.sha256(email.encode()).hexdigest()[:24], client_key(request), auth.now_s() - 900
+        if store.count_events('login_failed', by_email, since) >= 8 or store.count_events('login_failed', by_client, since) >= 40:
+            raise HTTPException(429, 'محاولات كثيرة. حاول بعد ربع ساعة.')
+        account = store.account_by_email(email)
+        valid = auth.check_password(body.password, account['password_hash'] if account else auth.DUMMY_HASH)
+        if not (account and valid):
+            store.add_event('login_failed', by_email); store.add_event('login_failed', by_client)
+            raise HTTPException(401, 'البريد أو كلمة المرور غير صحيحة.')
+        return {'token': store.create_session(account['id'], auth.SESSION_DAYS), 'name': account['name']}
+
+    @app.post('/api/auth/logout', status_code=204)
+    def logout(authorization: Annotated[str | None, Header()] = None):
+        token = bearer(authorization)
+        if token and len(token) <= 256: store.revoke_session(token)
+        return Response(status_code=204)
+
     @app.get('/api/me')
-    def me(actor=Depends(identity)):
-        return {'reviewer_id': actor, 'taxonomy': SUBPATTERNS, 'capabilities': {'heavy_jobs': heavy_allowed, 'read_only': read_only, 'hosted': hosted, 'storage': storage.backend, 'semantic': bool(os.getenv('EMBEDDING_MODEL')), 'llm': llm_provider(), 'draft_mode': True, 'public_access': public_access, 'diagnose_daily_limit': daily_limit or None}}
+    def me(request: Request, actor=Depends(identity)):
+        return {'reviewer_id': actor, 'name': request.state.name, 'role': request.state.role, 'taxonomy': SUBPATTERNS, 'capabilities': {'heavy_jobs': heavy_allowed, 'read_only': read_only, 'hosted': hosted, 'storage': storage.backend, 'semantic': bool(os.getenv('EMBEDDING_MODEL')), 'llm': llm_provider(), 'draft_mode': True, 'public_access': public_access, 'diagnose_daily_limit': daily_limit or None}}
 
     @app.get('/api/summary')
     def summary(actor=Depends(identity)):
@@ -208,10 +284,12 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     def record(rid: str, actor=Depends(identity)): return store.get(rid)
 
     @app.get('/api/records/{rid}/history')
-    def history(rid: str, actor=Depends(identity)): return store.history(rid)
+    def history(rid: str, actor=Depends(identity)):
+        names = store.reviewer_names()
+        return [dict(item, actor_name=names.get(item.get('actor'), item.get('actor'))) for item in store.history(rid)]
 
     @app.post('/api/records/{rid}/review')
-    def review(rid: str, request: ReviewRequest, actor=Depends(identity)):
+    def review(rid: str, request: ReviewRequest, actor=Depends(reviewer)):
         result = store.review(rid, request, actor)
         if os.getenv('EMBEDDING_MODEL'):
             try:  # best effort, after the review committed; never fails the review itself
@@ -230,7 +308,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         return store.cached(('chunks', sid), lambda: [{k: v for k, v in c.items() if k != 'raw_text'} for c in store.source_chunks(sid)], 300)
 
     @app.post('/api/sources/{sid}/model-extract')
-    def model_extract(sid: str, actor=Depends(identity), _=Depends(heavy)):
+    def model_extract(sid: str, actor=Depends(admin), _=Depends(heavy)):
         from .parsing.model_extraction import extract_with_model
         return extract_with_model(store, sid)
 
@@ -276,7 +354,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         return FileResponse(path, media_type='application/pdf', filename='source.pdf', content_disposition_type='inline')
 
     @app.post('/api/ingest')
-    def ingest(file: UploadFile = File(), title: str = Form('كتاب وليد'), author: str = Form(''), profile: str = Form('standard'), actor=Depends(identity), _=Depends(local_only)):
+    def ingest(file: UploadFile = File(), title: str = Form('كتاب وليد'), author: str = Form(''), profile: str = Form('standard'), actor=Depends(admin), _=Depends(local_only)):
         folder = ROOT / 'data' / 'raw'
         folder.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=folder, suffix='.pdf', delete=False) as out:
@@ -313,19 +391,19 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         return HybridRetriever(store).search(q, kind)
 
     @app.post('/api/embeddings/refresh')
-    def embeddings_refresh(request: RefreshRequest, actor=Depends(identity)):
+    def embeddings_refresh(request: RefreshRequest, actor=Depends(admin)):
         if not os.getenv('EMBEDDING_MODEL'): raise ValueError('Semantic index is not configured (EMBEDDING_MODEL)')
         limit = int(os.getenv('EMBED_REFRESH_LIMIT', '400'))
         return {'embedded_fields': refresh_embeddings(store, include_drafts=request.include_drafts, limit=limit), 'limit': limit}
 
     @app.post('/api/duplicates')
-    def duplicates(actor=Depends(identity), _=Depends(heavy)):
+    def duplicates(actor=Depends(admin), _=Depends(heavy)):
         from .duplicate_detection import detect_duplicates
         run = detect_duplicates(store, SemanticEncoder() if os.getenv('EMBEDDING_MODEL') else None)
         return {'id': run['id'], 'mode': run['mode'], 'pairs': len(run['pairs'])}
 
     @app.post('/api/families')
-    def families(actor=Depends(identity), _=Depends(heavy)):
+    def families(actor=Depends(admin), _=Depends(heavy)):
         runs = store.list_documents('duplicate_runs')
         if not runs: raise ValueError('Run duplicate analysis first')
         latest = max(runs, key=lambda d: d['payload'].get('at', ''))
@@ -351,37 +429,37 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         return store.get_document(kind, doc_id)
 
     @app.post('/api/benchmark')
-    def benchmark(request: BenchmarkRequest, actor=Depends(identity)):
+    def benchmark(request: BenchmarkRequest, actor=Depends(admin)):
         from .evaluation import create_benchmark
         manifest = create_benchmark(store, request.test_ids, request.validation_ids, request.auto, reviewer_id=actor)
         # Snapshots of every eligible record stay in the database; the response stays small.
         return {**{k: v for k, v in manifest.items() if k != 'records'}, 'record_count': len(manifest.get('records', []))}
 
     @app.post('/api/evaluate/{manifest_id}')
-    def evaluate(manifest_id: str, body: EvaluateRequest, actor=Depends(identity)):
+    def evaluate(manifest_id: str, body: EvaluateRequest, actor=Depends(admin)):
         from .evaluation import evaluate_predictions
         return evaluate_predictions(store, manifest_id, body.predictions, body.human_scores, body.split)
 
     @app.post('/api/export/{manifest_id}')
-    def training_export(manifest_id: str, actor=Depends(identity)):
+    def training_export(manifest_id: str, actor=Depends(admin)):
         from .export import build_training_export
         content, result = build_training_export(store, manifest_id)
         return Response(content, media_type='application/x-ndjson', headers={'Content-Disposition': 'attachment; filename="manhaj-training.jsonl"', 'X-Export-Id': result['export_id'], 'X-Content-SHA256': result['sha256']})
 
     @app.get('/api/export-json')
-    def json_export(actor=Depends(identity)):
+    def json_export(actor=Depends(reviewer)):
         # Cases held out for evaluation are flagged so nobody trains on them by accident.
         reserved = {x for m in store.list_documents('dataset_manifests') for k in ('test_ids', 'validation_ids') for x in m['payload'].get(k, [])}
         records = [{**r, 'reserved_for_evaluation': r['id'] in reserved} for r in store.eligible()]
         return Response(json.dumps(records, ensure_ascii=False, indent=2), media_type='application/json', headers={'Content-Disposition': 'attachment; filename="manhaj-approved.json"'})
 
     @app.post('/api/phase-two/enable')
-    def enable(request: GateRequest, actor=Depends(identity)):
+    def enable(request: GateRequest, actor=Depends(admin)):
         from .research import certify_phase_one
         return {'gate_id': certify_phase_one(store, actor, request.coverage_verified, request.notes)}
 
     @app.post('/api/research')
-    def research(request: ResearchRequest, actor=Depends(identity), _=Depends(heavy)):
+    def research(request: ResearchRequest, actor=Depends(admin), _=Depends(heavy)):
         from .research import research_common_objections
         return research_common_objections(request.topic, request.limit, store, ROOT/'config/external_sources.json')
 
