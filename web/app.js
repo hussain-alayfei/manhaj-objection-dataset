@@ -841,20 +841,58 @@ document.addEventListener('submit',async e=>{
 // Enter in the search box searches; Enter in a one-line review field must not trigger "approve".
 document.addEventListener('change',e=>{if(e.target.closest('.attest .check')&&e.target.checked)e.target.closest('.check').classList.remove('missing');});
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id==='search'){e.preventDefault();clearTimeout(searchTimer);query=e.target.value.trim();offset=0;render().catch(err=>notify(err.message));}else if(e.target.matches('#review-form input:not([type=checkbox]), #edit-title_ar'))e.preventDefault();});
-// Landing: the path plays itself, step by step, while it is on screen (a still list when motion is reduced).
-function playWay(){
- const list=$('.way');if(!list||!('IntersectionObserver' in window)||calm())return;
- const items=[...list.children];let timer=null,index=-1;
- const fill=li=>list.style.setProperty('--fill',li?Math.max(0,li.offsetTop+li.offsetHeight/2-22)+'px':'0px');
- const reset=()=>{clearTimeout(timer);index=-1;items.forEach(li=>li.classList.remove('on','done'));fill(null);};
- const tick=()=>{
-  if(index>=0){items[index].classList.remove('on');items[index].classList.add('done');}
-  index++;
-  if(index<items.length){items[index].classList.add('on');fill(items[index]);timer=setTimeout(tick,index===6?1500:1000);}
-  else timer=setTimeout(()=>{reset();timer=setTimeout(tick,600);},4000);
- };
- list.classList.add('animated');
- new IntersectionObserver(([entry])=>{if(entry.isIntersecting){if(index<0)timer=setTimeout(tick,400);}else reset();},{threshold:.35}).observe(list);
+// Landing: the path as a deck of windows. Each step opens an example window on top of the ones
+// already seen (the seventy-autumns question, drawn with the site's own step views); the reader moves on.
+const DEMO_TEXT=(quote,collection,number,source,grade,reference,grades)=>({kind:'حديث',quote,surah:0,ayah:0,collection,number,source_ar:source,grade_ar:grade,status:'ثابت',check:{state:'verified',label:'وُجد في مصدره',reference,grades}});
+const DEMO={input:'كيف يقول ﷺ: «سبعين خريفًا»، وفي حديث آخر: «مائة عام»؟ أليس هذا تناقضًا؟',gathered:{rules:6},
+ status:Object.fromEntries(STEPS.map(x=>[x.key,'done'])),checks:{},review:{available:true,holds:true,revised:false},
+ result:{analysis:{methodology_rule_ar:'الشريعة لا تفرّق بين المتماثلات، ولا تجمع بين المختلفات.'},source_evidence:[],retrieved_rules:[1,2,3,4,5,6]},
+ rounds:[{misunderstood:{ok:true,note:'حُرّرت الدعوى كما قصدها السائل: تعارض العددين.'},evidence_proves:{ok:true,note:'كل خطوة في التفكيك مسنودة بدليلها.'},contrary_text:{ok:true,note:'لا نص يعارض حمل العدد على التكثير.'},unsourced_attribution:{ok:true,note:'الروايتان مطابقتان لمصدريهما.'},possibility_as_certainty:{ok:true,note:'وُصف الجواب بأنه توجيه معتبر غير قطعي.'},stronger_explanation:{ok:true,note:'لم يظهر تفسير أقوى.'},holds:true,revision:''}],
+ steps:{
+  step1_framing:{claim:'الحديثان متعارضان',evidence:['«سبعين خريفًا»','«مائة عام»'],conclusion:'في النصوص تناقض',premises:['العددان مختلفان'],hidden_assumption:'العددان يُقارنان حسابيًا'},
+  step2_entities:{verses:[],hadiths:['حديثان'],key_words:['«خريف»','«في سبيل الله»'],numbers:['70','100'],persons:['الرواة والصحابة'],events:[],rulings:['فضل الصيام'],terms:['الخريف = العام'],claims:[]},
+  step3_sources:{texts:[DEMO_TEXT('من صام يومًا في سبيل الله بعّد الله وجهه عن النار سبعين خريفًا','bukhari',2840,'رواه البخاري ومسلم','صحيح','صحيح البخاري (2840)',[{by:'',grade:'صحيح، أخرجه البخاري في صحيحه'}]),
+   DEMO_TEXT('من صام يومًا في سبيل الله باعد الله منه جهنم مسيرة مائة عام','nasai',2254,'رواه النسائي','حسن','سنن النسائي (2254)',[{by:'الألباني',grade:'حسن'}])],variants:'رواية «سبعين خريفًا» في الصحيحين، ورواية «مائة عام» عند النسائي.'},
+  step4_related:{issue:'فضل صيام يوم في سبيل الله',other_texts:[],narrations:['تعددت الروايات في العدد'],scholars:['حمل أهل العلم العدد على التكثير'],language:['الخريف يُطلق ويُراد به العام'],usul:['العدد لا مفهوم له إذا عارضه ما هو أقوى'],context:['الحث على الصيام في الجهاد']},
+  step5_language:{findings:[{dimension:'دلالات الأعداد',finding:'السبعون والمائة لا يُراد بهما الحصر'},{dimension:'التكثير والمبالغة',finding:'العرب تذكر هذه الأعداد للتكثير'}]},
+  step6_comparison:{side_a:'«سبعين خريفًا»',side_b:'«مائة عام»',same_thing:{answer:'نعم',why:'كلاهما في فضل صوم يوم في سبيل الله'},same_aspect:{answer:'محتمل',why:'قد يختلف بحال الصائم وإخلاصه'},same_meaning:{answer:'لا',why:'العدد للتكثير لا للحساب'},checks:[{check:'حصر أم تكثير',finding:'العددان للتكثير'},{check:'جمع بين مختلفين',finding:'قورن عدد للتكثير بعدد آخر حسابيًا'}],conclusion:'لا تعارض؛ فالعددان لا يُقصد بهما التحديد.'},
+  governing_rules:{primary_pattern:'جمع بين مختلفين',sub_patterns:['اختلاف المعنى'],fault:'جمعٌ بين مختلفين',explanation:'سوّى بين عددٍ قد يُراد به التكثير وعددٍ آخر، ثم قارنهما حسابيًا.',methodology_rule_ids:[]},
+  step7_hypotheses:[{id:'H1',title:'المشكلة لغوية',basis:'دلالة العدد في لغة العرب'},{id:'H2',title:'المشكلة حديثية',basis:'اختلاف الروايات'},{id:'H3',title:'تفريق بين متماثلين',basis:'هل فُرّق بين أمرين متماثلين؟'},{id:'H4',title:'جمع بين مختلفين',basis:'قورن العددان حسابيًا'},{id:'H5',title:'مقدمة غير صحيحة',basis:'هل العددان مختلفان حقًا؟'},{id:'H6',title:'إشكال يحتاج جمع العلماء',basis:'قد يُحمل على تفاوت الأجر'}],
+  step8_tests:[{id:'H1',verdict:'مدعوم بالدليل',evidence:'كلام أهل اللغة في التكثير'},{id:'H2',verdict:'مرفوض',evidence:'الروايتان ثابتتان'},{id:'H3',verdict:'مرفوض',evidence:'لا تفريق في الحكم'},{id:'H4',verdict:'مدعوم بالدليل',evidence:'العدد للتكثير لا للحساب'},{id:'H5',verdict:'مرفوض',evidence:'العددان مختلفان فعلًا'},{id:'H6',verdict:'محتمل',evidence:'يُعرض مع غيره'}],
+  step9_map:{objection:'تعارض «سبعين خريفًا» و«مائة عام»',hidden_assumption:'العددان يُقارنان حسابيًا',fault:'جمعٌ بين مختلفين',evidence:'دلالة العدد على التكثير',rule:'الشريعة لا تجمع بين المختلفات',resolution:'العددان للتكثير فلا تعارض',conclusion:'لا تناقض بين الحديثين'},
+  step11_answer:{summary:'تعارضٌ ظاهري بين «سبعين خريفًا» و«مائة عام»',origin:'مقارنة حسابية بين عدد يُراد به التكثير وعدد آخر',dismantling:[{step:'التعارض مبني على قراءة العددين قراءة حسابية',evidence:'لفظ الحديثين'},{step:'الروايتان ثابتتان في مصادرهما',evidence:'البخاري (2840) والنسائي (2254)'},{step:'العدد في لغة العرب يُذكر للتكثير',evidence:'كلام أهل اللغة وشُرّاح الحديث'}],sources:['صحيح البخاري','صحيح مسلم','سنن النسائي','فتح الباري'],disagreement:'',revealing_question:'هل يلزم من ذكر عددين للتكثير أن يكون أحدهما خطأً؟',confidence:.7,confidence_label:'توجيه معتبر غير قطعي'}}};
+let deckAt=0;
+function deckWindow(s,k){
+ const body=s.key==='review'?reviewHtml(DEMO):STEP_VIEWS[s.key](DEMO.steps[s.key],DEMO);
+ return `<article class="win" data-win="${k}" aria-label="${s.name}"><div class="win-bar"><span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span><b>${s.name}</b><span class="win-tag">مثال توضيحي</span></div><div class="win-body"><span class="panel-num" aria-hidden="true">${s.core?'◆':s.mark.padStart(2,'0')}</span><header class="panel-head"><h3>${s.name}</h3><p>${esc(s.tag)}</p></header>${body}</div></article>`;
 }
-playWay();
+function showDeck(index){
+ const deck=$('#deck');if(!deck)return;
+ deckAt=Math.min(STEPS.length-1,Math.max(0,index));
+ deck.querySelectorAll('.win').forEach(w=>{
+  const rel=Number(w.dataset.win)-deckAt,d=-rel;
+  // the open window on top; those already seen stacked behind it; the rest wait below, unseen
+  w.style.transform=rel===0?'none':rel<0?`translateY(${-Math.min(d,3)*15}px) scale(${1-Math.min(d,3)*.045})`:'translateY(64px) scale(.97)';
+  w.style.opacity=rel===0?'1':rel<0?(d>3?'0':String(1-d*.12)):'0';
+  w.style.zIndex=rel>0?'31':String(30-Math.min(d,30));
+  w.classList.toggle('behind',rel<0);w.toggleAttribute('inert',rel!==0);w.setAttribute('aria-hidden',String(rel!==0));
+  if(rel===0)w.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
+ });
+ const list=$('.way');
+ list.querySelectorAll('li').forEach((li,k)=>{li.classList.toggle('on',k===deckAt);li.classList.toggle('done',k<deckAt);li.querySelector('button').setAttribute('aria-current',k===deckAt?'step':'false');});
+ const li=list.children[deckAt];list.style.setProperty('--fill',Math.max(0,li.offsetTop+3)+'px');
+ $('#deck-count').innerHTML=`<b>${STEPS[deckAt].name}</b><small>الخطوة ${deckAt+1} من ${STEPS.length}</small>`;
+ const [prev,next]=document.querySelectorAll('[data-deck]');prev.disabled=deckAt===0;next.textContent=deckAt===STEPS.length-1?'من البداية':'التالي';
+}
+function buildDeck(){
+ const deck=$('#deck');if(!deck)return;
+ deck.innerHTML=STEPS.map(deckWindow).join('');$('.way').classList.add('interactive');showDeck(0);
+ document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-way],[data-deck]');if(!b)return;
+  if(b.dataset.way!==undefined)showDeck(Number(b.dataset.way));
+  else showDeck(deckAt===STEPS.length-1&&b.dataset.deck==='1'?0:deckAt+Number(b.dataset.deck));
+ });
+ $('.land-way').addEventListener('keydown',e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;if(e.target.closest('input, textarea'))return;e.preventDefault();showDeck(deckAt+(e.key==='ArrowLeft'?1:-1));});
+}
+buildDeck();
 init();
