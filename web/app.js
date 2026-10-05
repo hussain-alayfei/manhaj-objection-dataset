@@ -17,10 +17,31 @@ try{sessionStorage.removeItem('manhaj-token');}catch{}
 let token=remember.get(), ready=false, view='overview', offset=0, currentRecord=null, taxonomy={}, query='', status=null, caps={};
 const badge=s=>`<span class="pill ${s==='approved'?'':s==='rejected'?'rejected':'pending'}">${esc(statuses[s]||s)}</span>`;
 let noticeTimer;
-function notify(message){
- const n=$('#notice');clearTimeout(noticeTimer);n.classList.remove('leaving');n.textContent=message;n.hidden=false;
- noticeTimer=setTimeout(()=>{n.classList.add('leaving');noticeTimer=setTimeout(()=>{n.hidden=true;n.classList.remove('leaving');},260);},6500);
+const icons={error:'<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></g></svg>',
+ success:'<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 2.6 2.6L16 9.6"/></g></svg>'};
+// Messages live in the browser's top layer (a popover), so they always show above an open window.
+function notify(message,kind='success'){
+ const n=$('#notice');clearTimeout(noticeTimer);
+ n.className='notice '+kind;n.setAttribute('role',kind==='error'?'alert':'status');
+ n.innerHTML=`${icons[kind]||icons.success}<p></p><button type="button" class="notice-close" aria-label="إغلاق الرسالة"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M18 6 6 18M6 6l12 12"/></svg></button>`;
+ n.querySelector('p').textContent=message;
+ if(n.showPopover){try{n.hidePopover();}catch{}n.showPopover();}else{(document.querySelector('dialog[open]')||document.body).appendChild(n);n.hidden=false;}
+ noticeTimer=setTimeout(hideNotice,kind==='error'?9000:5000);
 }
+function hideNotice(){const n=$('#notice');clearTimeout(noticeTimer);n.classList.add('leaving');noticeTimer=setTimeout(()=>{if(n.hidePopover){try{n.hidePopover();}catch{}}else n.hidden=true;n.classList.remove('leaving');},220);}
+document.addEventListener('click',e=>{if(e.target.closest('.notice-close'))hideNotice();});
+// The book's PDF extraction mirrored brackets and left spaces before commas: show the text as it is printed.
+// (Stored evidence is untouched; matching on the server ignores brackets and punctuation spacing.)
+function ar(value){
+ let t=String(value??'');
+ for(const [o,c] of [['{','}'],['(',')'],['[',']']]){const i=t.indexOf(o),j=t.indexOf(c);if(j!==-1&&(i===-1||j<i))t=[...t].map(ch=>ch===o?c:ch===c?o:ch).join('');}
+ t=t.replace(/\{\s*/g,'﴿').replace(/\s*\}/g,'﴾').replace(/"\s*([^"\n]{1,400}?)\s*"/g,'«$1»');
+ t=t.replace(/([^\s(\[﴿«"])([(\[﴿«])/g,'$1 $2').replace(/([)\]﴾»])(?=[؀-ۿ0-9])/g,'$1 ');
+ t=t.replace(/([(\[«﴿])\s+/g,'$1').replace(/\s+([)\]»﴾])/g,'$1');
+ t=t.replace(/[ \t]+([،؛:.!؟,])/g,'$1').replace(/([،؛])(?=[^\s\d])/g,'$1 ');
+ return t;
+}
+const loaderHtml=text=>`<div class="loader" role="status"><img src="/static/img/loader-mizan.webp" alt="" width="58" height="61"><span>${esc(text)}</span></div>`;
 function closeDialog(d){if(!d.open)return;d.classList.add('closing');setTimeout(()=>{d.classList.remove('closing');d.close();},180);}
 
 // GET responses are kept for 60 s in memory; any write clears them.
@@ -49,9 +70,9 @@ async function init(){
  if(!token){setMode('landing');return;}
  setMode('app');
  try{const me=await api('/me');ready=true;taxonomy=me.taxonomy;caps=me.capabilities||{};me.role==='visitor'&&($('#logout').hidden=true);$('#identity').textContent=(me.name||me.reviewer_id)+(caps.read_only?' (قراءة فقط)':'');await render();prefetch();}
- catch(e){ready=false;if(e.status===401){signedOut(token?'انتهت الجلسة. سجّل الدخول من جديد.':'');return;}notify('تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.');}
+ catch(e){ready=false;if(e.status===401){signedOut(token?'انتهت الجلسة. سجّل الدخول من جديد.':'');return;}notify('تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.','error');}
 }
-function signedOut(message){token='';remember.set('');ready=false;cache.clear();$('#content').innerHTML='';delete $('#content').dataset.view;document.querySelectorAll('dialog[open]').forEach(d=>d.close());setMode('landing');if(message)notify(message);}
+function signedOut(message){token='';remember.set('');ready=false;cache.clear();$('#content').innerHTML='';delete $('#content').dataset.view;document.querySelectorAll('dialog[open]').forEach(d=>d.close());setMode('landing');if(message)notify(message,'error');}
 $('#logout').addEventListener('click',async()=>{const was=token;signedOut('');if(was)fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+was}}).catch(()=>{});history.replaceState(null,'',location.pathname);});
 
 // ---------- Sign up / sign in ----------
@@ -60,7 +81,8 @@ function openAuth(mode){
  authMode=mode;const signup=mode==='signup';
  $('#auth-title').textContent=signup?'إنشاء حساب':'تسجيل الدخول';
  $('#auth-sub').textContent=signup?'اسمك وبريدك وكلمة مرور، ولا شيء غير ذلك.':'أهلًا بعودتك.';
- $('#name-field').hidden=!signup;$('#auth-name').required=signup;$('#pw-hint').hidden=!signup;
+ $('#name-field').hidden=!signup;$('#auth-name').required=signup;$('#pw-rules').hidden=!signup;
+ document.querySelectorAll('#auth .field-error').forEach(n=>{n.hidden=true;n.previousElementSibling?.setAttribute('aria-invalid','false');});
  $('#auth-password').autocomplete=signup?'new-password':'current-password';
  $('#auth-submit').textContent=signup?'إنشاء الحساب':'دخول';
  $('#switch-text').textContent=signup?'لديك حساب؟':'ليس لديك حساب؟';$('#auth-switch').textContent=signup?'سجّل الدخول':'أنشئ حسابًا';
@@ -70,20 +92,32 @@ function openAuth(mode){
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-auth]');if(b)openAuth(b.dataset.auth);});
 $('#auth-switch').addEventListener('click',()=>openAuth(authMode==='signup'?'login':'signup'));
+// Same rules as the server (src/auth.py): a real-looking email and a medium-strength password.
+const EMAIL=/^(?!\.)(?!.*\.\.)[A-Za-z0-9._%+-]{1,64}(?<!\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}$/;
+const TYPOS={'gmial.com':'gmail.com','gmai.com':'gmail.com','gmail.co':'gmail.com','gmail.con':'gmail.com','gmail.cm':'gmail.com','gamil.com':'gmail.com','gmal.com':'gmail.com','hotmial.com':'hotmail.com','hotmail.con':'hotmail.com','hotmai.com':'hotmail.com','outlok.com':'outlook.com','outlook.con':'outlook.com','yaho.com':'yahoo.com','yahoo.con':'yahoo.com','icloud.con':'icloud.com','iclod.com':'icloud.com'};
+const nameProblem=v=>v.replace(/\s+/g,' ').trim().length<2?'اكتب اسمك (حرفان على الأقل).':'';
+function emailProblem(v){v=v.trim().toLowerCase();if(!EMAIL.test(v))return 'البريد الإلكتروني غير صحيح. مثال صحيح: name@example.com';const [user,domain]=v.split('@');return TYPOS[domain]?`هل تقصد ${user}@${TYPOS[domain]}؟ تحقق من البريد.`:'';}
+const passwordChecks=v=>({length:v.length>=8,letter:/\p{L}/u.test(v),digit:/\d/.test(v)});
+function passwordProblem(v,email){const c=passwordChecks(v);if(!c.length)return 'كلمة المرور من 8 أحرف على الأقل.';if(!c.letter||!c.digit)return 'كلمة المرور تحتاج حرفًا ورقمًا على الأقل.';if(v!==v.trim())return 'لا تبدأ كلمة المرور بمسافة ولا تنتهِ بها.';const user=(email||'').toLowerCase().split('@')[0];if(user.length>=5&&v.toLowerCase().includes(user))return 'اختر كلمة مرور لا تحتوي على بريدك.';return '';}
+function fieldNote(input,message){let note=input.nextElementSibling;if(!note||!note.classList.contains('field-error')){note=document.createElement('small');note.className='field-error';input.after(note);}note.textContent=message;note.hidden=!message;input.setAttribute('aria-invalid',message?'true':'false');}
+$('#auth-email').addEventListener('blur',e=>{if(e.target.value.trim())fieldNote(e.target,emailProblem(e.target.value));});
+$('#auth-email').addEventListener('input',e=>{if(e.target.getAttribute('aria-invalid')==='true')fieldNote(e.target,emailProblem(e.target.value));});
+$('#auth-name').addEventListener('blur',e=>{if(e.target.value)fieldNote(e.target,nameProblem(e.target.value));});
+$('#auth-password').addEventListener('input',e=>{const c=passwordChecks(e.target.value);document.querySelectorAll('#pw-rules li').forEach(li=>li.classList.toggle('ok',c[li.dataset.rule]));});
 $('#auth-form').addEventListener('submit',async e=>{
  e.preventDefault();const error=$('#auth-error'),submit=$('#auth-submit');error.hidden=true;
  const body={email:$('#auth-email').value.trim(),password:$('#auth-password').value};
  if(authMode==='signup')body.name=$('#auth-name').value.trim();
- const problem=authMode==='signup'&&body.name.length<2?'اكتب اسمك.':!/^\S+@\S+\.\S+$/.test(body.email)?'اكتب بريدًا إلكترونيًا صحيحًا.':body.password.length<(authMode==='signup'?8:1)?(authMode==='signup'?'كلمة المرور من 8 أحرف على الأقل.':'اكتب كلمة المرور.'):'';
+ const problem=authMode==='signup'?(nameProblem(body.name)||emailProblem(body.email)||passwordProblem(body.password,body.email)):(emailProblem(body.email)||(body.password?'':'اكتب كلمة المرور.'));
  if(problem){error.textContent=problem;error.hidden=false;return;}
- submit.disabled=true;
+ submit.disabled=true;submit.classList.add('busy');
  try{
   const r=await request('/auth/'+authMode,{method:'POST',body});
   token=r.token;remember.set(token);$('#auth-password').value='';closeDialog($('#auth'));
   if(!titles[location.hash.slice(1)])view='overview';
   await init();notify(authMode==='signup'?`أهلًا ${r.name}، أُنشئ حسابك.`:`أهلًا ${r.name}.`);
  }catch(err){error.textContent=err.message;error.hidden=false;}
- finally{submit.disabled=false;}
+ finally{submit.disabled=false;submit.classList.remove('busy');}
 });
 // The landing wordmark returns to the top.
 $('.land-brand').addEventListener('click',e=>{e.preventDefault();window.scrollTo({top:0});});
@@ -141,7 +175,7 @@ async function overview(){
  $('#content').innerHTML=title('نظرة عامة','ما ينتظر المراجعة في المشروع الآن.')+
  `<div class="metrics">${figures.map(([label,n,note])=>`<div class="metric"><div class="label">${label}</div><strong>${num(n)}</strong><small>${note}</small></div>`).join('')}</div>
  <div class="hero"><h3>كيف تُحلَّل الشبهة؟</h3><p>أصل المنهج في الكتاب أن الشريعة لا تفرّق بين المتماثلات ولا تجمع بين المختلفات، فكل شبهة إما جمعٌ بين مختلفين فيُرد عليها ببيان الفرق المؤثر، وإما تفريقٌ بين متماثلين فيُرد عليها ببيان وجه التماثل.</p><ol class="steps"><li>تحديد ما يدّعيه المعترض</li><li>تحديد الطرفين المقارَن بينهما</li><li>هل هو جمعٌ بين مختلفين أم تفريقٌ بين متماثلين؟</li><li>ربطه بقاعدة من الكتاب</li><li>صياغة الرد ثم مراجعته من مختص</li></ol></div>
- <div class="two-col"><section class="card"><div class="card-head"><h3>بانتظار المراجعة</h3><button class="quiet" data-go="review">عرض الكل</button></div>${records.items.map(r=>`<div class="row"><div class="text"><h4>${esc(r.title_ar)}</h4><p>${esc(where(r))}</p></div><button data-open="${esc(r.id)}">مراجعة</button></div>`).join('')||'<div class="empty">لا توجد حالات بانتظار المراجعة.</div>'}</section>
+ <div class="two-col"><section class="card"><div class="card-head"><h3>بانتظار المراجعة</h3><button class="quiet" data-go="review">عرض الكل</button></div>${records.items.map(r=>`<div class="row"><div class="text"><h4>${esc(ar(r.title_ar))}</h4><p>${esc(where(r))}</p></div><button data-open="${esc(r.id)}">مراجعة</button></div>`).join('')||'<div class="empty">لا توجد حالات بانتظار المراجعة.</div>'}</section>
  <section class="guarantees"><h3>كيف نضمن صحة البيانات</h3><div class="guarantee"><b>النص من الكتاب نفسه</b><p>كل مقتطف محفوظ برقم صفحته وموضعه في النص.</p></div><div class="guarantee"><b>التحليل اقتراح</b><p>يقترح النظام التشخيص، ويمتنع عنه إذا لم تكفِ الأدلة.</p></div><div class="guarantee"><b>الاعتماد بيد المختص</b><p>لا يُستخدم أي سجل في التقييم أو التدريب قبل أن يعتمده مراجع.</p></div></section></div>
  <section class="card spaced"><h3>حلّل شبهة</h3><p class="muted">اكتب الشبهة كما سمعتها أو قرأتها. سيقترح النظام تشخيصًا مستندًا إلى قواعد الكتاب، والنتيجة اقتراح يراجعه مختص.</p><form id="diagnose-form"><label for="diagnose-text">نص الشبهة</label><textarea id="diagnose-text" required maxlength="12000" placeholder="مثال: لماذا تقولون إن الحكم واحد مع أن الحالتين مختلفتان؟"></textarea><label class="check"><input id="diagnose-drafts" type="checkbox">استخدم أيضًا القواعد التي لم تُراجع بعد (تُعلَّم النتيجة «مسودة»)</label><div class="form-actions"><button class="primary">حلّل الشبهة</button>${caps.semantic&&!caps.read_only?'<button type="button" data-action="refresh-index">تحديث البحث بعد التعديلات</button>':''}</div></form><div id="diagnosis-result" class="spaced" aria-live="polite"></div></section>`;
 }
@@ -166,12 +200,12 @@ async function recordsView(){
 const countLabel=n=>n===0?'لا سجلات':n===1?'سجل واحد':n===2?'سجلان':n<=10?`${num(n)} سجلات`:`${num(n)} سجل`;
 function tableHtml(data){
  const last=Math.min(offset+30,data.total);
- return `<div class="table-wrap"><table><thead><tr><th>العنوان</th><th>التشخيص</th><th>المصدر</th><th>الحالة</th><th><span class="sr-only">إجراء</span></th></tr></thead><tbody>${data.items.map(r=>`<tr><td>${esc(r.title_ar)}<small dir="ltr">${esc(r.id)}</small></td><td>${esc(patternName(r.primary_pattern))}<small>${esc(r.sub_patterns.map(subName).join('، '))}</small></td><td>${esc(r.source?.source_name||'مجموعة مقترحة')}<small>${esc(page(r))}</small></td><td>${badge(r.review_status)}</td><td><button data-open="${esc(r.id)}">فتح</button></td></tr>`).join('')}</tbody></table>${data.items.length?'':`<div class="empty">${query?'لا شيء يطابق «'+esc(query)+'».':'القائمة فارغة.'}</div>`}</div>${data.total>30?`<div class="pagination"><span>${num(offset+1)} إلى ${num(last)} من ${num(data.total)}</span><div><button data-page="prev" ${offset===0?'disabled':''}>السابق</button> <button data-page="next" ${offset+30>=data.total?'disabled':''}>التالي</button></div></div>`:''}`;
+ return `<div class="table-wrap"><table><thead><tr><th>العنوان</th><th>التشخيص</th><th>المصدر</th><th>الحالة</th><th><span class="sr-only">إجراء</span></th></tr></thead><tbody>${data.items.map(r=>`<tr><td>${esc(ar(r.title_ar))}<small dir="ltr">${esc(r.id)}</small></td><td>${esc(patternName(r.primary_pattern))}<small>${esc(r.sub_patterns.map(subName).join('، '))}</small></td><td>${esc(r.source?.source_name||'مجموعة مقترحة')}<small>${esc(page(r))}</small></td><td>${badge(r.review_status)}</td><td><button data-open="${esc(r.id)}">فتح</button></td></tr>`).join('')}</tbody></table>${data.items.length?'':`<div class="empty">${query?'لا شيء يطابق «'+esc(query)+'».':'القائمة فارغة.'}</div>`}</div>${data.total>30?`<div class="pagination"><span>${num(offset+1)} إلى ${num(last)} من ${num(data.total)}</span><div><button data-page="prev" ${offset===0?'disabled':''}>السابق</button> <button data-page="next" ${offset+30>=data.total?'disabled':''}>التالي</button></div></div>`:''}`;
 }
 // Results follow the search box as you type (after a short pause) and the status list at once.
 let searchTimer;
-document.addEventListener('input',e=>{if(e.target.id!=='search')return;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{query=e.target.value.trim();offset=0;render().catch(err=>notify(err.message));},280);});
-document.addEventListener('change',e=>{if(e.target.id!=='status-filter')return;status=e.target.value;offset=0;render().catch(err=>notify(err.message));});
+document.addEventListener('input',e=>{if(e.target.id!=='search')return;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{query=e.target.value.trim();offset=0;render().catch(err=>notify(err.message,'error'));},280);});
+document.addEventListener('change',e=>{if(e.target.id!=='status-filter')return;status=e.target.value;offset=0;render().catch(err=>notify(err.message,'error'));});
 async function sourcesView(){
  const seq=renderSeq;
  const sources=await api('/sources');
@@ -209,21 +243,21 @@ async function openRecord(id){
  const diagnosisPicker=`<div class="fields-two"><div class="field"><label for="edit-pattern">التشخيص</label><select id="edit-pattern">${patterns.map(p=>`<option value="${esc(p)}" ${p===r.primary_pattern?'selected':''}>${esc(patternName(p))}</option>`).join('')}</select></div><div class="field"><label for="edit-subpatterns">تفصيل التشخيص</label><select id="edit-subpatterns" multiple size="4">${Object.values(taxonomy).flat().map(p=>`<option value="${esc(p)}" ${r.sub_patterns.includes(p)?'selected':''}>${esc(subName(p))}</option>`).join('')}</select></div></div>`;
  const facts=[['المؤلف',r.source?.author],['الصفحة',r.source?.page_number],['الموضع',(r.source?.section||'').replace(/\s*:\s*$/,'')]].filter(([,v])=>v);
  const ruleField=r.kind==='rule'
-  ? field('methodology_rule_ar','نص القاعدة كما في الكتاب',reflow(r.methodology_rule_ar),{rows:true,hint:'انسخه حرفيًا من نص الكتاب المجاور.'})
+  ? field('methodology_rule_ar','نص القاعدة كما في الكتاب',ar(reflow(r.methodology_rule_ar)),{rows:true,hint:'انسخه حرفيًا من نص الكتاب المجاور.'})
   : `<div class="field"><label for="edit-ruleids">القواعد المرتبطة</label><small class="hint">الاعتماد يتطلب أن تكون القواعد المرتبطة معتمدة.</small><select id="edit-ruleids" multiple size="5">${rules.items.filter(x=>x.review_status!=='rejected'||r.methodology_rule_ids.includes(x.id)).map(x=>`<option value="${esc(x.id)}" ${r.methodology_rule_ids.includes(x.id)?'selected':''}>${esc(x.title_ar)}${x.review_status==='approved'?'':' ('+esc(statuses[x.review_status]||x.review_status)+')'}</option>`).join('')}</select></div>`;
  $('#editor-content').innerHTML=`<header class="modal-head"><div class="modal-title"><h3 id="editor-title">مراجعة ${kindName}</h3>${badge(r.review_status)}<small class="muted" dir="ltr">${esc(r.id)}</small><small class="muted">الإصدار ${num(r.version)}</small></div><button data-action="close">إغلاق</button></header>
  <div class="modal-grid">
   <section class="evidence-pane" aria-label="نص الكتاب">
    <div class="evidence-head"><h4>${esc(r.source?.source_name||'مجموعة مقترحة')}</h4>${r.source?.source_type==='book'?`<button data-book="${esc(r.source.source_id)}" data-bookpage="${r.source.page_number||1}" data-booktitle="${esc(r.source.source_name)}">افتح الصفحة في الكتاب</button>`:''}</div>
    ${facts.length?`<dl class="facts">${facts.map(([k,v])=>`<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`:''}
-   <div class="excerpt">${esc(reflow(r.source?.source_excerpt||r.common_variants_ar.join('\n\n')))}</div>
+   <div class="excerpt">${esc(ar(reflow(r.source?.source_excerpt||r.common_variants_ar.join('\n\n'))))}</div>
    <details class="history"><summary data-history="${esc(r.id)}">سجل التعديلات</summary><ol id="history"></ol></details>
   </section>
   <form id="review-form" class="review-pane">
    ${r.kind==='rule'
-    ? `<fieldset><legend>القاعدة</legend>${field('title_ar','العنوان',r.title_ar,{line:true})}${ruleField}</fieldset>
+    ? `<fieldset><legend>القاعدة</legend>${field('title_ar','العنوان',ar(r.title_ar),{line:true})}${ruleField}</fieldset>
        <fieldset><legend>التصنيف</legend>${diagnosisPicker}${field('treatment_ar','كيف تُطبَّق القاعدة',r.treatment_ar,{rows:true})}</fieldset>`
-    : `<fieldset><legend>${r.kind==='family'?'المجموعة':'الشبهة'}</legend>${field('title_ar','العنوان',r.title_ar,{line:true})}${r.kind==='objection'?field('objection_text_ar','نص الشبهة',reflow(r.objection_text_ar),{rows:true,hint:'العبارة كما وردت في نص الكتاب.'}):''}${r.kind==='family'?field('core_claim_ar','الدعوى المشتركة',r.core_claim_ar,{rows:true})+field('core_confusion_ar','موضع الالتباس المشترك',r.core_confusion_ar,{rows:true}):''}</fieldset>
+    : `<fieldset><legend>${r.kind==='family'?'المجموعة':'الشبهة'}</legend>${field('title_ar','العنوان',ar(r.title_ar),{line:true})}${r.kind==='objection'?field('objection_text_ar','نص الشبهة',ar(reflow(r.objection_text_ar)),{rows:true,hint:'العبارة كما وردت في نص الكتاب.'}):''}${r.kind==='family'?field('core_claim_ar','الدعوى المشتركة',r.core_claim_ar,{rows:true})+field('core_confusion_ar','موضع الالتباس المشترك',r.core_confusion_ar,{rows:true}):''}</fieldset>
        <fieldset><legend>التحليل</legend>${field('central_claim_ar','ما يدّعيه المعترض',r.central_claim_ar,{rows:true,hint:'أعد صياغة الدعوى بإيجاز.'})}${field('subclaims_ar','تفاصيل الدعوى',r.subclaims_ar.join('\n'),{rows:true,hint:'سطر لكل نقطة.'})}${field('compared_entities_ar','طرفا المقارنة',r.compared_entities_ar.map(x=>x.entity_a+' | '+x.entity_b).join('\n'),{rows:true,hint:'كل سطر: الطرف الأول | الطرف الثاني'})}${diagnosisPicker}${field('diagnostic_reason_ar','سبب التشخيص',r.diagnostic_reason_ar,{rows:true})}</fieldset>
        <fieldset><legend>الرد</legend>${field('revealing_question_ar','سؤال يكشف الإشكال',r.revealing_question_ar,{rows:true})}${ruleField}${field('treatment_ar','طريقة المعالجة',r.treatment_ar,{rows:true})}${field('response_path_ar','خطوات الرد',r.response_path_ar.join('\n'),{rows:true,hint:'سطر لكل خطوة.'})}</fieldset>`}
    <details class="more"><summary>التكرار والتشابه</summary>${field('duplicate_group_id','رقم مجموعة التكرار',r.duplicate_group_id||'')}${field('family_id','رقم مجموعة التشابه',r.family_id||'')}<div class="field"><label for="edit-similarity">نوع التشابه</label><select id="edit-similarity">${Object.entries(similarityNames).map(([x,name])=>`<option value="${x}" ${x===r.similarity_type?'selected':''}>${name}</option>`).join('')}</select></div></details>
@@ -304,7 +338,7 @@ $('#book').addEventListener('touchend',e=>{if(touchX===null)return;const dx=e.ch
 
 const abstentions={no_approved_methodology:'لا توجد قاعدة معتمدة تناسب هذه الشبهة بعد، فلم يصنّفها النظام. يمكنك تفعيل خيار القواعد التي لم تُراجع.',model_not_configured:'خدمة التحليل غير مفعّلة.',model_or_grounding_validation_failed:'لم يستند اقتراح النظام إلى قواعد الكتاب، فاستُبعد.',retrieval_unavailable:'تعذر البحث في الكتاب الآن. حاول بعد قليل.',safety_gate:'أوقف النظام نتيجة خرجت عن حدود التشخيص.'};
 function diagnosisHtml(r){
- const a=r.analysis,draft=r.mode==='draft',item=(label,value)=>value&&String(value).trim()?`<dt>${label}</dt><dd>${esc(value)}</dd>`:'';
+ const a=r.analysis,draft=r.mode==='draft',item=(label,value)=>value&&String(value).trim()?`<dt>${label}</dt><dd>${esc(ar(value))}</dd>`:'';
  const list=(label,values)=>values&&values.length?`<dt>${label}</dt><dd><ol>${values.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></dd>`:'';
  const cites=r.source_evidence.map(c=>`<li><button class="quiet" data-book="${esc(c.source?.source_id||'')}" data-bookpage="${c.source?.page_number||1}" data-booktitle="${esc(c.source?.source_name||'')}">${esc(c.source?.source_name||'')}، صفحة ${c.source?.page_number??''}</button> ${badge(c.review_status||'approved')}</li>`).join('');
  const note=r.abstention_reason?(abstentions[r.abstention_reason]||'لم يصنّف النظام هذه الشبهة.'):'اقتراح مستند إلى قواعد الكتاب، يحتاج مراجعة مختص.';
@@ -314,13 +348,14 @@ function diagnosisHtml(r){
 async function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 document.addEventListener('click',async e=>{
  const b=e.target.closest('button, summary[data-history]');if(!b)return;
+ if(b.tagName==='BUTTON'&&(b.dataset.open||b.dataset.book||b.dataset.chunks||b.dataset.action==='duplicates'||b.dataset.action==='families'||b.dataset.action==='refresh-index'||b.dataset.action==='json-export'))b.classList.add('busy');
  try{
  if(b.dataset.go)go(b.dataset.go);
  if(b.dataset.open)await openRecord(b.dataset.open);
  if(b.dataset.page){offset=Math.max(0,offset+(b.dataset.page==='next'?30:-30));await render();}
  if(b.dataset.book)await openBook(b.dataset.book,Number(b.dataset.bookpage)||1,b.dataset.booktitle);
  if(b.dataset.turn)await showPages(book.page+(b.dataset.turn==='next'?spread():-spread()),b.dataset.turn==='next'?1:-1);
- if(b.dataset.chunks){const chunks=await api('/sources/'+b.dataset.chunks+'/chunks');$('#editor-content').innerHTML='<header class="modal-head"><div class="modal-title"><h3 id="editor-title">نص الكتاب مقسّمًا</h3></div><button data-action="close">إغلاق</button></header><div class="chunks">'+chunks.map(c=>`<details><summary>صفحة ${num(c.page_number)}: ${esc(c.section)}</summary><pre class="excerpt">${esc(c.text)}</pre></details>`).join('')+'</div>';$('#editor').showModal();}
+ if(b.dataset.chunks){const chunks=await api('/sources/'+b.dataset.chunks+'/chunks');$('#editor-content').innerHTML='<header class="modal-head"><div class="modal-title"><h3 id="editor-title">نص الكتاب مقسّمًا</h3></div><button data-action="close">إغلاق</button></header><div class="chunks">'+chunks.map(c=>`<details><summary>صفحة ${num(c.page_number)}: ${esc(c.section)}</summary><pre class="excerpt">${esc(ar(c.text))}</pre></details>`).join('')+'</div>';$('#editor').showModal();}
  if(b.dataset.history&&!b.closest('details').open){const history=await api('/records/'+b.dataset.history+'/history');$('#history').innerHTML=history.map(x=>`<li><b>الإصدار ${num(x.snapshot.version)}</b> ${esc(historyActions[x.action]||x.action)}، ${esc(/^machine:/.test(x.actor)?'النظام':x.actor_name||x.actor)}، ${esc(new Date(x.at).toLocaleString('ar-u-nu-latn'))}</li>`).join('');}
  const action=b.dataset.action;
  if(action==='close')closeDialog($('#editor'));
@@ -330,11 +365,19 @@ document.addEventListener('click',async e=>{
  if(action==='families'){b.disabled=true;const r=await api('/families',{method:'POST'});notify('مجموعات مقترحة جديدة: '+num(r.created.length));await render();}
  if(action==='refresh-index'){b.disabled=true;await api('/embeddings/refresh',{method:'POST',body:{include_drafts:true}});notify('حُدّث البحث.');}
  if(action==='json-export')await download(await api('/export-json',{blob:true}),'manhaj-approved.json');
- }catch(err){notify(err.message);}finally{if(b.tagName==='BUTTON')b.disabled=false;}
+ }catch(err){notify(err.message,'error');}finally{if(b.tagName==='BUTTON'){b.disabled=false;b.classList.remove('busy');}}
 });
 document.addEventListener('submit',async e=>{
  if(e.target.id==='auth-form')return;
- e.preventDefault();const button=e.submitter;if(e.target.id==='review-form'&&!button?.value)return;if(button)button.disabled=true;
+ e.preventDefault();const button=e.submitter;if(e.target.id==='review-form'&&!button?.value)return;
+ // approving needs the three checks: say so right here instead of after a round trip
+ if(e.target.id==='review-form'&&button.value==='approve'){
+  const needed=currentRecord.kind==='family'?['verify-diagnosis']:['verify-source','verify-page','verify-diagnosis'];
+  const missing=needed.filter(id=>!$('#'+id).checked);
+  document.querySelectorAll('.attest .check').forEach(l=>l.classList.toggle('missing',missing.includes(l.querySelector('input').id)));
+  if(missing.length){notify('قبل الاعتماد علّم المربعات المظللة في أسفل النافذة.','error');return;}
+ }
+ if(button){button.disabled=true;button.classList.add('busy');}
  try{
  const id=e.target.id;
  if(id==='review-form'){
@@ -352,13 +395,14 @@ document.addEventListener('submit',async e=>{
  closeDialog($('#editor'));notify(button.value==='approve'?'اعتُمد السجل.':button.value==='reject'?'رُفض السجل.':'حُفظت التعديلات.');await render();
  }
  if(id==='ingest-form'){const form=new FormData();form.append('file',$('#pdf-file').files[0]);form.append('title',$('#pdf-title').value);form.append('author',$('#pdf-author').value);form.append('profile',$('#pdf-profile').value);notify('يجري استخراج الصفحات، وقد يستغرق ذلك عدة دقائق.');const r=await api('/ingest',{method:'POST',body:form});notify('سجلات جديدة بانتظار المراجعة: '+num(r.candidate_count));await render();}
- if(id==='diagnose-form'){$('#diagnosis-result').innerHTML='<div class="banner" role="status">يجري التحليل، وقد يأخذ نصف دقيقة.</div>';const r=await api('/diagnose',{method:'POST',body:{text:$('#diagnose-text').value,include_drafts:$('#diagnose-drafts').checked}});$('#diagnosis-result').innerHTML=diagnosisHtml(r);}
+ if(id==='diagnose-form'){$('#diagnosis-result').innerHTML=loaderHtml('يجري التحليل، وقد يأخذ نصف دقيقة');const r=await api('/diagnose',{method:'POST',body:{text:$('#diagnose-text').value,include_drafts:$('#diagnose-drafts').checked}});$('#diagnosis-result').innerHTML=diagnosisHtml(r);}
  if(id==='research-form'){const r=await api('/research',{method:'POST',body:{topic:$('#research-topic').value,limit:Number($('#research-limit').value)}});notify('حالات جديدة: '+num(r.record_ids.length)+'، ومصادر تعذر الوصول إليها: '+num(r.errors.length));await render();}
  if(id==='gate-form'){await api('/phase-two/enable',{method:'POST',body:{coverage_verified:$('#coverage-check').checked,notes:$('#coverage-notes').value}});notify('وُثّق اكتمال مراجعة الكتاب.');}
  if(id==='benchmark-form'){const ids=s=>$(s).value.split(/[\n,،]/).map(x=>x.trim()).filter(Boolean);await api('/benchmark',{method:'POST',body:{test_ids:ids('#test-ids'),validation_ids:ids('#validation-ids')}});notify('حُفظت مجموعة الاختبار.');await render();}
  if(id==='export-form'){const blob=await api('/export/'+$('#manifest').value,{method:'POST',blob:true});await download(blob,'manhaj-training.jsonl');await render();}
- }catch(err){notify(err.message);if(e.target.id==='diagnose-form')$('#diagnosis-result').innerHTML='';}finally{if(button)button.disabled=false;}
+ }catch(err){notify(err.message,'error');if(e.target.id==='diagnose-form')$('#diagnosis-result').innerHTML='';}finally{if(button){button.disabled=false;button.classList.remove('busy');}}
 });
 // Enter in the search box searches; Enter in a one-line review field must not trigger "approve".
+document.addEventListener('change',e=>{if(e.target.closest('.attest .check')&&e.target.checked)e.target.closest('.check').classList.remove('missing');});
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id==='search'){e.preventDefault();clearTimeout(searchTimer);query=e.target.value.trim();offset=0;render().catch(err=>notify(err.message));}else if(e.target.matches('#review-form input:not([type=checkbox]), #edit-title_ar'))e.preventDefault();});
 init();
