@@ -841,4 +841,20 @@ document.addEventListener('submit',async e=>{
 // Enter in the search box searches; Enter in a one-line review field must not trigger "approve".
 document.addEventListener('change',e=>{if(e.target.closest('.attest .check')&&e.target.checked)e.target.closest('.check').classList.remove('missing');});
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id==='search'){e.preventDefault();clearTimeout(searchTimer);query=e.target.value.trim();offset=0;render().catch(err=>notify(err.message));}else if(e.target.matches('#review-form input:not([type=checkbox]), #edit-title_ar'))e.preventDefault();});
+// Landing: the path plays itself, step by step, while it is on screen (a still list when motion is reduced).
+function playWay(){
+ const list=$('.way');if(!list||!('IntersectionObserver' in window)||calm())return;
+ const items=[...list.children];let timer=null,index=-1;
+ const fill=li=>list.style.setProperty('--fill',li?Math.max(0,li.offsetTop+li.offsetHeight/2-22)+'px':'0px');
+ const reset=()=>{clearTimeout(timer);index=-1;items.forEach(li=>li.classList.remove('on','done'));fill(null);};
+ const tick=()=>{
+  if(index>=0){items[index].classList.remove('on');items[index].classList.add('done');}
+  index++;
+  if(index<items.length){items[index].classList.add('on');fill(items[index]);timer=setTimeout(tick,index===6?1500:1000);}
+  else timer=setTimeout(()=>{reset();timer=setTimeout(tick,600);},4000);
+ };
+ list.classList.add('animated');
+ new IntersectionObserver(([entry])=>{if(entry.isIntersecting){if(index<0)timer=setTimeout(tick,400);}else reset();},{threshold:.35}).observe(list);
+}
+playWay();
 init();
