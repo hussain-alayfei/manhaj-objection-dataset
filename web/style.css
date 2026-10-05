@@ -478,7 +478,7 @@ dialog.profile{width:min(520px,94vw);max-height:90vh;border:0;border-radius:18px
 .destructive-link:hover{background:transparent;text-decoration:underline}
 /* Analyse tab */
 /* overview: a photograph of the reading desk carries the way into analysis */
-.analyze-cta{position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;min-height:210px;border-radius:18px;padding:30px 34px;margin-bottom:26px;overflow:hidden;
+.analyze-cta{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:16px;min-height:210px;border-radius:18px;padding:30px 34px;margin-bottom:26px;overflow:hidden;
   background:linear-gradient(to left,#f6f3eaf2 0%,#f6f3eacc 38%,#f6f3ea33 62%,transparent 78%),url(/static/img/overview-analyze-1680.webp) left center/cover no-repeat;box-shadow:0 1px 2px #1c302c0d,0 12px 30px #1c302c14}
 .analyze-cta h3{font-size:30px;color:var(--green-deep)}
 .analyze-cta p{color:#3d4f48;font-size:15px;margin-top:4px;max-width:42ch}
