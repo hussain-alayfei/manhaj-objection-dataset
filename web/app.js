@@ -43,7 +43,7 @@ async function request(path, options={}){
 }
 function title(name,subtitle,action=''){return `<div class="page-title"><div><h2>${esc(name)}</h2><p>${esc(subtitle)}</p></div>${action}</div>`;}
 // Two faces: the public introduction for guests, the reviewing desk once signed in.
-function setMode(mode){document.body.dataset.mode=mode;if(mode==='landing'){document.title='مَنْهَج | مراجعة الشبهات';reveal();window.heroDepth?.();}}
+function setMode(mode){document.body.dataset.mode=mode;if(mode==='landing')document.title='مَنْهَج | مراجعة الشبهات';}
 async function init(){
  if(titles[location.hash.slice(1)])view=location.hash.slice(1);
  if(!token){setMode('landing');return;}
@@ -85,42 +85,8 @@ $('#auth-form').addEventListener('submit',async e=>{
  }catch(err){error.textContent=err.message;error.hidden=false;}
  finally{submit.disabled=false;}
 });
-// Landing header: transparent over the photograph, solid once the page scrolls; the logo returns to the top.
-const landBar=$('#land-bar'),solidBar=()=>landBar.classList.toggle('solid',window.scrollY>24);
-window.addEventListener('scroll',solidBar,{passive:true});solidBar();
-$('.land-brand').addEventListener('click',e=>{e.preventDefault();window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});});
-// Hero depth on scroll (real time, linear): the photograph drifts slowest, the balance a little faster and
-// tips as if weighed, the words rise ahead and fade. Only translate/rotate/opacity change; nothing hijacks scrolling.
-(()=>{
- const hero=$('.land-hero');if(!hero||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
- let ticking=false;
- const paint=()=>{
-  ticking=false;
-  const h=hero.offsetHeight;if(!h)return; // hidden until the landing page is shown
-  const y=Math.min(Math.max(window.scrollY,0),h),t=y/h; // 0 at the top, 1 when the hero has left
-  const phone=window.innerWidth<=760,tilt=-7*t,rad=tilt*Math.PI/180,drop=341*Math.sin(rad);
-  hero.style.setProperty('--bg-y',(y*(phone?.25:.45)).toFixed(1)+'px');
-  hero.style.setProperty('--bg-s',(1+.06*t).toFixed(4));
-  hero.style.setProperty('--mz-y',(y*(phone?.12:.28)).toFixed(1)+'px');
-  hero.style.setProperty('--mz-x',(-y*.04).toFixed(1)+'px');
-  hero.style.setProperty('--tilt',tilt.toFixed(2)+'deg');
-  hero.style.setProperty('--pan-l',(-drop).toFixed(1)+'px');
-  hero.style.setProperty('--pan-r',drop.toFixed(1)+'px');
-  hero.style.setProperty('--tx-y',(-y*(phone?.08:.18)).toFixed(1)+'px');
-  hero.style.setProperty('--tx-o',Math.max(0,1-t*1.5).toFixed(3));
- };
- window.addEventListener('scroll',()=>{if(!ticking&&document.body.dataset.mode==='landing'){ticking=true;requestAnimationFrame(paint);}},{passive:true});
- window.addEventListener('resize',paint,{passive:true});window.heroDepth=paint;
-})();
-// Landing sections fade in as they scroll into view.
-let revealed=false;
-function reveal(){
- if(revealed)return;revealed=true;
- const items=document.querySelectorAll('.reveal');
- if(!('IntersectionObserver' in window)){items.forEach(x=>x.classList.add('shown'));return;}
- const seen=new IntersectionObserver(entries=>entries.forEach(x=>{if(x.isIntersecting){x.target.classList.add('shown');seen.unobserve(x.target);}}),{rootMargin:'0px 0px -12% 0px'});
- items.forEach(x=>seen.observe(x));
-}
+// The landing wordmark returns to the top.
+$('.land-brand').addEventListener('click',e=>{e.preventDefault();window.scrollTo({top:0});});
 
 // Each tab has its own address (#rules, #review…) so refresh, Back/Forward and shared links keep the place.
 function go(next){if(!titles[next])next='overview';offset=0;query='';status=null;if(location.hash.slice(1)!==next){location.hash=next;return;}view=next;render().catch(e=>notify(e.message));}

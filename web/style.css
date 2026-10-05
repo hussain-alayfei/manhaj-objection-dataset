@@ -237,105 +237,51 @@ legend{font-family:var(--naskh);font-size:18px;font-weight:700;color:var(--green
 
 /* Two faces: nothing shows until the script knows whether you are signed in (no flash of the wrong page) */
 body:not([data-mode=landing]) #landing,body:not([data-mode=app]) #app{display:none}
-body[data-mode=app] #app,body[data-mode=landing] #landing{animation:fade-in .3s ease-out both}
+body[data-mode=app] #app{animation:fade-in .3s ease-out both}
 
 
-/* Header: floats over the hero, turns solid once you scroll */
+/* Landing: light and quiet. The page colour runs edge to edge; no frames, no rules between sections. */
 .land-wrap{max-width:1180px;margin:0 auto;padding:0 32px}
-.land-bar{position:fixed;inset:0 0 auto;z-index:20;transition:background-color .35s ease,box-shadow .35s ease,backdrop-filter .35s ease}
-.land-bar .land-wrap{transition:height .35s ease}
 .land-bar .land-wrap{height:88px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.land-brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:#f3ead6;transition:color .35s ease}
+.land-brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--green)}
 /* Aref Ruqaa draws about half an em above its declared ascent; the top padding keeps the word inside the bar */
 .land-brand span{font-family:var(--ruqaa);font-weight:700;font-size:30px;line-height:1;padding-top:.5em}
-.land-brand.small{color:var(--green)}
-.land-brand.small span{font-size:22px;padding-top:.5em}
-.land-actions{display:flex;align-items:center;gap:14px}
-.land-bar .quiet{color:#f3ead6;font-size:15px;transition:color .35s ease}
-.land-bar .primary{background:#d8b56f;border-color:#d8b56f;color:#10291f}
-.land-bar .primary:hover{background:#e7cb8c;border-color:#e7cb8c;color:#10291f}
-.land-bar.solid{background:#f6f5f0eb;-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);box-shadow:0 1px 0 #aa834840}
-.land-bar.solid .land-wrap{height:76px}
-.land-bar.solid .land-brand,.land-bar.solid .quiet{color:var(--green)}
-.land-bar.solid .primary{background:var(--green);border-color:var(--green);color:#fff}
-
-/* Hero: the study photograph fills the screen; the scale stands on the desk */
-.land-hero{position:relative;min-height:min(100svh,940px);display:flex;align-items:center;overflow:hidden;background:#0c2219;color:#f3ead6;--fx:50%;--fy:34%}
-.hero-frame{position:absolute;inset:0;container-type:size;overflow:hidden}
-/* the stage keeps the photo's 16:9 shape and covers the hero, so the scale stays on the desk at any size */
-.hero-stage{position:absolute;top:var(--fy);left:var(--fx);width:max(112cqw,199.1cqh);height:max(112cqh,63cqw);transform:translate(calc(-1 * var(--fx)),calc(-1 * var(--fy)))}
-.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:drift 14s cubic-bezier(.2,.6,.3,1) both;translate:0 var(--bg-y,0);scale:var(--bg-s,1);will-change:translate}
-.mizan{translate:var(--mz-x,0) var(--mz-y,0);will-change:translate;position:absolute;left:19.8%;top:23.6%;height:51%;width:auto;aspect-ratio:1;overflow:visible;filter:drop-shadow(0 18px 24px #0008);animation:rise 1.1s cubic-bezier(.2,.7,.2,1) .25s both}
-.hero-shade{position:absolute;inset:0;background:radial-gradient(ellipse 60% 75% at 82% 55%,#06150ecc 0%,#06150e8c 45%,transparent 75%),linear-gradient(to bottom,#06150e80 0,transparent 20%,transparent 78%,#06150e66 100%)}
-/* a gold hairline closes the photograph */
-.land-hero::after{content:"";position:absolute;inset:auto 0 0;height:1px;background:linear-gradient(to left,transparent,#d8b56f99 20%,#d8b56f99 80%,transparent)}
-.hero-inner{position:relative;width:100%;padding-top:96px;padding-bottom:72px}
-.land-copy{max-width:520px;translate:0 var(--tx-y,0);opacity:var(--tx-o,1);will-change:translate,opacity}
-.principle{margin:0}
-.principle p{font-family:var(--naskh);font-weight:700;font-size:clamp(34px,4.3vw,56px);line-height:1.55;color:#f6eedb;text-wrap:balance;text-shadow:0 2px 24px #000a}
-.principle p::before{content:"«";color:#d8b56f}
-.principle p::after{content:"»";color:#d8b56f}
-.land-lead{margin-top:22px;font-size:17px;line-height:2.05;color:#e3ebe5;max-width:54ch;text-shadow:0 1px 12px #000c}
-.land-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
-button.big{min-height:50px;padding:10px 28px;font-size:15.5px}
-.gold{background:#d8b56f;border-color:#d8b56f;color:#10291f;font-weight:600}
-.gold:hover{background:#e7cb8c;border-color:#e7cb8c;color:#10291f}
-.ghost{background:transparent;border-color:#f3ead666;color:#f3ead6}
-.ghost:hover{background:#ffffff14;border-color:#f3ead6;color:#fff}
-.land-copy>*{animation:rise .8s cubic-bezier(.2,.7,.2,1) both}
-.land-copy>:nth-child(1){animation-delay:.35s}
-.land-copy>:nth-child(2){animation-delay:.5s}
-.land-copy>:nth-child(3){animation-delay:.62s}
-.landing .land-example{border-top:0}
-
-/* The balance: a few swings that settle toward level, then a slow breathing sway.
-   Pans follow the beam ends (341 units from the pivot): rise = 341 x sin(angle). */
-.mizan .beam{transform-box:view-box;transform-origin:512px 157px;animation:beam-settle 3.2s cubic-bezier(.45,.05,.35,1) .6s both,beam-idle 7s ease-in-out 3.8s infinite}
-.mizan .pan-l{animation:left-settle 3.2s cubic-bezier(.45,.05,.35,1) .6s both,left-idle 7s ease-in-out 3.8s infinite}
-.mizan .pan-r{animation:right-settle 3.2s cubic-bezier(.45,.05,.35,1) .6s both,right-idle 7s ease-in-out 3.8s infinite}
-.mizan .swing{transform-box:view-box;animation:swing 3.2s ease-out .6s both}
-.mizan .pan-l .swing{transform-origin:170px 190px}
-.mizan .beam{rotate:var(--tilt,0deg)}
-.mizan .pan-l{translate:0 var(--pan-l,0)}
-.mizan .pan-r{translate:0 var(--pan-r,0)}
-.mizan .pan-r .swing{transform-origin:854px 190px}
-@keyframes beam-settle{0%{transform:rotate(-9deg)}22%{transform:rotate(6deg)}44%{transform:rotate(-3.5deg)}64%{transform:rotate(2deg)}82%{transform:rotate(-.8deg)}100%{transform:rotate(0)}}
-@keyframes left-settle{0%{transform:translateY(53.4px)}22%{transform:translateY(-35.7px)}44%{transform:translateY(20.9px)}64%{transform:translateY(-12.0px)}82%{transform:translateY(4.7px)}100%{transform:translateY(0)}}
-@keyframes right-settle{0%{transform:translateY(-53.4px)}22%{transform:translateY(35.7px)}44%{transform:translateY(-20.9px)}64%{transform:translateY(12.0px)}82%{transform:translateY(-4.7px)}100%{transform:translateY(0)}}
-@keyframes beam-idle{0%,100%{transform:rotate(0)}30%{transform:rotate(1.4deg)}70%{transform:rotate(-1.4deg)}}
-@keyframes left-idle{0%,100%{transform:translateY(0)}30%{transform:translateY(-8.2px)}70%{transform:translateY(8.2px)}}
-@keyframes right-idle{0%,100%{transform:translateY(0)}30%{transform:translateY(8.2px)}70%{transform:translateY(-8.2px)}}
-@keyframes swing{0%{transform:rotate(4deg)}25%{transform:rotate(-3deg)}50%{transform:rotate(1.6deg)}75%{transform:rotate(-.6deg)}100%{transform:rotate(0)}}
-@keyframes drift{from{transform:scale(1.06)}to{transform:scale(1)}}
-@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-
-/* Landing sections below the hero */
-.landing{max-width:1180px;margin:0 auto;padding:0 32px}
 .land-brand.small span{font-size:22px}
+.land-actions{display:flex;align-items:center;gap:16px}
+.land-actions .quiet{font-size:15px}
+.land-hero{padding:24px 0 72px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
+.land-copy{max-width:540px}
 .principle{margin:0}
-button.big{min-height:48px;padding:10px 26px;font-size:15.5px}
+.principle p{font-family:var(--naskh);font-weight:700;font-size:clamp(34px,4.2vw,54px);line-height:1.55;color:var(--green-deep);text-wrap:balance}
+.principle p::before,.principle p::after{color:var(--gold)}
+.principle p::before{content:"«"}
+.principle p::after{content:"»"}
+.land-lead{margin-top:22px;font-size:17px;line-height:2.05;color:#3d4f48;max-width:54ch}
+.land-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+button.big{min-height:50px;padding:10px 28px;font-size:15.5px}
+/* the cut-out sits straight on the page, lifted only by a soft warm light behind it */
+.hero-art{margin:0;position:relative;display:grid;place-items:center}
+.hero-art::before{content:"";position:absolute;inset:6% 4%;background:radial-gradient(closest-side,#e9dcc0 0%,#f1e9d8 45%,transparent 100%);opacity:.9}
+.hero-art img{position:relative;width:min(100%,520px);height:auto;filter:drop-shadow(0 26px 28px #1c302c24)}
 .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:28px}
 .section-head h2{font-size:30px}
 .section-head p{color:var(--muted);font-size:14px}
-.land-example{border-top:1px solid var(--line);padding:64px 0}
+.land-example{padding:56px 0}
 .example-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:48px;align-items:start}
 .ex-claim h3,.ex-analysis dt{font-family:var(--ui);font-size:13.5px;font-weight:600;color:var(--green)}
 .ex-claim p{margin-top:10px;font-family:var(--naskh);font-size:25px;line-height:1.9;border-inline-start:3px solid var(--gold);padding-inline-start:20px}
-.ex-analysis{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:6px 26px}
+.ex-analysis{margin:0;background:var(--surface);border-radius:14px;padding:8px 28px;box-shadow:0 1px 2px #1c302c0d,0 12px 32px #1c302c0f}
 .ex-analysis div{padding:16px 0}
-.ex-analysis div+div{border-top:1px solid var(--line)}
+.ex-analysis div+div{border-top:1px solid #eef0ea}
 .ex-analysis dd{margin:4px 0 0;font-family:var(--naskh);font-size:18.5px;line-height:1.95}
-.land-steps{border-top:1px solid var(--line);padding:64px 0 72px}
+.land-steps{padding:40px 0 72px}
 .land-steps ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px;counter-reset:step}
 .land-steps li{counter-increment:step;display:grid;gap:8px;align-content:start}
 .land-steps li b{font-family:var(--naskh);font-size:21px;line-height:1.6}
 .land-steps li b::before{content:counter(step) "- ";color:var(--gold);font-family:var(--ui);font-variant-numeric:tabular-nums}
 .land-steps li span{color:var(--muted);font-size:14.5px;line-height:1.95}
-.land-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-top:1px solid var(--line);padding:24px 0 36px;color:var(--muted);font-size:13px}
-/* One orchestrated entrance for the hero, then sections appear as they are reached */
-.reveal{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
-.reveal.shown{opacity:1;transform:none}
-@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.land-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:24px 0 40px;color:var(--muted);font-size:13px}
 
 /* Sign up / sign in */
 #auth{width:min(440px,94vw);overflow:visible}
@@ -361,10 +307,10 @@ button.big{min-height:48px;padding:10px 26px;font-size:15.5px}
 #records-table.refresh tbody,#records-table.refresh .empty{animation:fade-in .22s ease-out both}
 #diagnosis-result>*,#history>*{animation:fade-in .3s ease-out both}
 dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
-@media (prefers-reduced-motion:reduce){*,*::before,*::after,::backdrop{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after,::backdrop{animation:none!important;transition:none!important}}
 
 /* Responsive */
-@media(max-width:980px){.example-grid{grid-template-columns:1fr;gap:28px}.land-steps ol{grid-template-columns:1fr;gap:24px}}
+@media(max-width:980px){.hero-grid{grid-template-columns:1fr;gap:20px}.hero-art{order:-1}.hero-art img{width:min(78%,420px)}.example-grid{grid-template-columns:1fr;gap:28px}.land-steps ol{grid-template-columns:1fr;gap:24px}}
 @media(max-width:1100px){main{padding:0 24px 40px;margin-right:222px}.sidebar{width:222px}.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.metric:nth-child(3){border-right:0}.metric:nth-child(n+3){border-top:1px solid var(--line)}}
 @media(max-width:760px){
   .sidebar{position:static;width:auto;padding:12px 14px 8px;border-left:0;border-bottom:1px solid var(--line)}
@@ -396,17 +342,13 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
   .fields-two{grid-template-columns:1fr}
   .landing{padding:0 16px}
   .land-wrap{padding:0 16px}
-  .land-bar .land-wrap,.land-bar.solid .land-wrap{height:72px}
+  .land-bar .land-wrap{height:72px}
+  .land-hero{padding:4px 0 44px}
   .land-brand span{font-size:26px}
   .land-actions{gap:8px}
   .land-actions .primary{padding:8px 14px}
-  .land-hero{display:block;min-height:0;--fx:8%;--fy:40%}
-  .hero-frame{position:relative;height:clamp(300px,82vw,440px)}
-  .hero-shade{bottom:auto;height:clamp(300px,82vw,440px);background:linear-gradient(to bottom,#071a12b3 0,transparent 30%,transparent 70%,#0c2219 100%)}
-  .hero-inner{padding-top:8px;padding-bottom:48px}
   .principle p{font-size:31px}
   .land-lead{font-size:15.5px}
-        .land-actions .primary{padding:8px 14px}
   .land-example,.land-steps{padding:44px 0}
   .section-head{flex-direction:column;gap:2px}
   .ex-claim p{font-size:21px}
