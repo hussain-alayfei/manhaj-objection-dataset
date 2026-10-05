@@ -477,11 +477,12 @@ dialog.profile{width:min(520px,94vw);max-height:90vh;border:0;border-radius:18px
 .destructive-link{border:0;background:transparent;color:#c4271b;padding:4px 0;min-height:0;justify-self:start;font-weight:600}
 .destructive-link:hover{background:transparent;text-decoration:underline}
 /* Analyse tab */
-.analyze-cta{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;background:radial-gradient(ellipse at 90% 0%,#24614e 0%,var(--green-deep) 70%);color:#f3ead6;border-radius:16px;padding:24px 28px;margin-bottom:26px}
-.analyze-cta h3{font-size:26px;color:#f6eedb}
-.analyze-cta p{color:#d6e2da;font-size:14.5px;margin-top:2px}
-.analyze-cta .primary{background:#d8b56f;border-color:#d8b56f;color:#10291f;font-weight:600}
-.analyze-cta .primary:hover{background:#e7cb8c;border-color:#e7cb8c}
+/* overview: a photograph of the reading desk carries the way into analysis */
+.analyze-cta{position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;min-height:210px;border-radius:18px;padding:30px 34px;margin-bottom:26px;overflow:hidden;
+  background:linear-gradient(to left,#f6f3eaf2 0%,#f6f3eacc 38%,#f6f3ea33 62%,transparent 78%),url(/static/img/overview-analyze-1680.webp) left center/cover no-repeat;box-shadow:0 1px 2px #1c302c0d,0 12px 30px #1c302c14}
+.analyze-cta h3{font-size:30px;color:var(--green-deep)}
+.analyze-cta p{color:#3d4f48;font-size:15px;margin-top:4px;max-width:42ch}
+.analyze-cta .primary{font-weight:600}
 .ai-note{margin-top:12px;font-size:12.5px;color:#7a5c2b;background:#fbf5e8;border-radius:8px;padding:8px 12px}
 .my-history{margin-top:8px}
 .my-history .card-head{margin-bottom:12px}
@@ -500,4 +501,4 @@ dialog.profile{width:min(520px,94vw);max-height:90vh;border:0;border-radius:18px
 .feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px;font-size:13.5px;color:var(--muted)}
 .feedback button{min-height:32px;padding:4px 14px;border-radius:999px;font-size:13px}
 .feedback button.chosen{background:var(--green);border-color:var(--green);color:#fff}
-@media(max-width:760px){.analyze-cta{padding:20px}.stats strong{font-size:22px}.profile-head{padding:22px 18px 16px}.profile-body{padding:4px 18px 20px}}
+@media(max-width:760px){.analyze-cta{padding:22px;min-height:0;background:linear-gradient(#f6f3eaeb,#f6f3eaeb),url(/static/img/overview-analyze-1680.webp) left center/cover no-repeat}.stats strong{font-size:22px}.profile-head{padding:22px 18px 16px}.profile-body{padding:4px 18px 20px}}
