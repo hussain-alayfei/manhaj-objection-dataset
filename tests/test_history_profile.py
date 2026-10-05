@@ -8,8 +8,8 @@ from conftest import approve, record
 
 TOKEN = 'operator-token-history'
 TOKENS = {'operator': hashlib.sha256(TOKEN.encode()).hexdigest()}
-A = {'name': 'مراجع أول', 'email': 'first@example.com', 'password': 'first-pass-1'}
-B = {'name': 'مراجع ثان', 'email': 'second@example.com', 'password': 'second-pass-2'}
+A = {'name': 'مراجع أول', 'email': 'first@example.com', 'password': 'river-stone-7'}
+B = {'name': 'مراجع ثان', 'email': 'second@example.com', 'password': 'cedar-light-4'}
 
 
 def bearer(t): return {'Authorization': 'Bearer ' + t}
