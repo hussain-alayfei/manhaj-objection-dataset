@@ -539,7 +539,7 @@ function diagnosisHtml(r,{retry=false}={}){
   const again=retry&&r.abstention_reason==='no_approved_methodology'&&r.mode!=='draft'?'<button type="button" class="primary" data-retry-drafts>أعد التحليل بكل قواعد الكتاب</button>':'';
   return `<div class="abstain"><img src="/static/img/emblem.webp" alt="" width="36" height="36"><div><h4>${esc(head)}</h4><p>${esc(why)}</p>${again}</div></div>${feedbackHtml(r)}`;
  }
- const plain=v=>String(v??'').replace(/\s*\(?(?:RUL|SHB|FAM)-[0-9a-z]+\)?/gi,'').replace(/\s{2,}/g,' ').trim(); // never show internal record codes
+ const plain=v=>String(v??'').replace(/\s*\(?\b(?:RUL|SHB|FAM)-[0-9a-z]+\b\)?/gi,'').replace(/\s{2,}/g,' ').trim(); // never show internal record codes
  const a=r.analysis,draft=r.mode==='draft',item=(label,value)=>plain(value)?`<dt>${label}</dt><dd>${esc(ar(plain(value)))}</dd>`:'';
  const list=(label,values)=>values&&values.length?`<dt>${label}</dt><dd><ol>${values.map(x=>`<li>${esc(plain(x))}</li>`).join('')}</ol></dd>`:'';
  const cites=r.source_evidence.map(c=>`<li><button class="quiet" data-book="${esc(c.source?.source_id||'')}" data-bookpage="${c.source?.page_number||1}" data-booktitle="${esc(c.source?.source_name||'')}">${esc(c.source?.source_name||'')}، صفحة ${c.source?.page_number??''}</button> ${badge(c.review_status||'approved')}</li>`).join('');
