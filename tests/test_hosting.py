@@ -186,3 +186,23 @@ def test_read_cache_is_cleared_by_writes(store):
     assert store.cached('k', compute) == 1 and store.cached('k', compute) == 1
     store.add(record('SHB-cache'))  # any write clears the cache
     assert store.cached('k', compute) == 2
+
+
+def test_public_access_needs_no_login_but_tokens_still_identify(store):
+    store.add(record())
+    c = client(store, public_access=True)
+    me = c.get('/api/me').json()
+    assert me['reviewer_id'] == 'visitor' and me['capabilities']['public_access'] is True
+    assert c.get('/api/me', headers={'Authorization': 'Bearer wrong'}).json()['reviewer_id'] == 'visitor'
+    assert c.get('/api/me', headers=AUTH).json()['reviewer_id'] == 'expert'
+    assert c.get('/api/records').status_code == 200
+    rid = c.get('/api/records').json()['items'][0]['id']
+    saved = c.post(f'/api/records/{rid}/review', json={'expected_version': 1, 'action': 'edit', 'changes': {'central_claim_ar': 'تحرير'}})
+    assert saved.status_code == 200, saved.text
+
+
+def test_login_still_required_without_public_access(store):
+    c = client(store)
+    assert c.get('/api/me').status_code == 401
+    assert c.get('/api/me', headers={'Authorization': 'Bearer wrong'}).status_code == 401
+    assert TestClient(create_app(store, {}, public_access=True)).get('/api/me').json()['reviewer_id'] == 'visitor'
