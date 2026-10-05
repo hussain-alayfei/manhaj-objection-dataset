@@ -343,12 +343,6 @@ button.big{min-height:50px;padding:10px 28px;font-size:15.5px}
 .ex-analysis div{padding:16px 0}
 .ex-analysis div+div{border-top:1px solid #eef0ea}
 .ex-analysis dd{margin:4px 0 0;font-family:var(--naskh);font-size:18.5px;line-height:1.95}
-.land-steps{padding:40px 0 72px}
-.land-steps ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px;counter-reset:step}
-.land-steps li{counter-increment:step;display:grid;gap:8px;align-content:start}
-.land-steps li b{font-family:var(--naskh);font-size:21px;line-height:1.6}
-.land-steps li b::before{content:counter(step) "- ";color:var(--gold);font-family:var(--ui);font-variant-numeric:tabular-nums}
-.land-steps li span{color:var(--muted);font-size:14.5px;line-height:1.95}
 .land-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:24px 0 40px;color:var(--muted);font-size:13px}
 
 /* Sign up / sign in */
@@ -376,7 +370,7 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after,::backdrop{animation:none!important;transition:none!important}}
 
 /* Responsive */
-@media(max-width:980px){.example-grid{grid-template-columns:1fr;gap:28px}.land-steps ol{grid-template-columns:1fr;gap:24px}}
+@media(max-width:980px){.example-grid{grid-template-columns:1fr;gap:28px}}
 @media(min-width:761px) and (max-width:1100px){.land-hero::before{background:linear-gradient(to left,#f6f5f0f5 0%,#f6f5f0e6 45%,#f6f5f099 68%,transparent 88%),linear-gradient(to bottom,transparent 70%,var(--bg) 100%),url(/static/img/hero-desk-2560.webp) left center/cover no-repeat}}
 @media(max-width:1100px){main{padding:0 24px 40px;margin-right:222px}.sidebar{width:222px}.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.metric:nth-child(3){border-right:0}.metric:nth-child(n+3){border-top:1px solid var(--line)}}
 @media(max-width:760px){
@@ -417,7 +411,7 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
   .land-actions .primary{padding:8px 14px}
   .principle p{font-size:31px}
   .land-lead{font-size:15.5px}
-  .land-example,.land-steps{padding:44px 0}
+  .land-example{padding:44px 0}
   .section-head{flex-direction:column;gap:2px}
   .ex-claim p{font-size:21px}
   .auth-card{padding:28px 20px 22px}
