@@ -85,6 +85,10 @@ $('#auth-form').addEventListener('submit',async e=>{
  }catch(err){error.textContent=err.message;error.hidden=false;}
  finally{submit.disabled=false;}
 });
+// Landing header: transparent over the photograph, solid once the page scrolls; the logo returns to the top.
+const landBar=$('#land-bar'),solidBar=()=>landBar.classList.toggle('solid',window.scrollY>24);
+window.addEventListener('scroll',solidBar,{passive:true});solidBar();
+$('.land-brand').addEventListener('click',e=>{e.preventDefault();window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});});
 // Landing sections fade in as they scroll into view.
 let revealed=false;
 function reveal(){
