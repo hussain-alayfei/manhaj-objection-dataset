@@ -41,7 +41,7 @@ async function request(path, options={}){
 function title(name,subtitle,action=''){return `<div class="page-title"><div><h2>${esc(name)}</h2><p>${esc(subtitle)}</p></div>${action}</div>`;}
 async function init(){
  if(titles[location.hash.slice(1)])view=location.hash.slice(1);
- try{const me=await api('/me');ready=true;$('#logout').hidden=!!(caps=me.capabilities||{}).public_access;taxonomy=me.taxonomy;caps=me.capabilities||{};$('#identity').textContent=me.reviewer_id+(caps.read_only?' (قراءة فقط)':'');$('#login').hidden=true;$('#content').hidden=false;await render();prefetch();}
+ try{const me=await api('/me');ready=true;$('#logout').hidden=!!(caps=me.capabilities||{}).public_access;taxonomy=me.taxonomy;caps=me.capabilities||{};$('#identity').textContent=(me.reviewer_id==='visitor'?'زائر':me.reviewer_id)+(caps.read_only?' (قراءة فقط)':'');$('#login').hidden=true;$('#content').hidden=false;await render();prefetch();}
  catch(e){ready=false;if(e.status===401){const had=token;sessionStorage.removeItem('manhaj-token');token='';$('#login').hidden=false;$('#content').hidden=true;if(had)notify('رمز الوصول غير صحيح.');return;}$('#login').hidden=false;$('#content').hidden=true;notify(e.status===401?'رمز الوصول غير صحيح.':'تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.');}
 }
 $('#login-form').addEventListener('submit',e=>{e.preventDefault();token=$('#token').value.trim();sessionStorage.setItem('manhaj-token',token);$('#token').value='';init();});
