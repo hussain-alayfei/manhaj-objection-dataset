@@ -11,7 +11,7 @@ const subNames={'أصل ≠ وصف':'الخلط بين الأصل والوصف',
 const subName=p=>subNames[p]||p;
 const similarityNames={exact_duplicate:'مكررة حرفيًا',paraphrase:'الشبهة نفسها بصياغة أخرى',same_underlying_objection:'أصلها شبهة واحدة',same_pattern_different_objection:'النمط نفسه مع شبهة مختلفة',new_case:'حالة جديدة'};
 const historyActions={create:'إنشاء',edit:'تعديل',approve:'اعتماد',reject:'رفض',reopen:'إعادة فتح',machine_proposal:'اقتراح آلي'};
-let token=sessionStorage.getItem('manhaj-token')||'', view='overview', offset=0, currentRecord=null, taxonomy={}, query='', status=null, caps={};
+let token=sessionStorage.getItem('manhaj-token')||'', ready=false, view='overview', offset=0, currentRecord=null, taxonomy={}, query='', status=null, caps={};
 const badge=s=>`<span class="pill ${s==='approved'?'':s==='rejected'?'rejected':'pending'}">${esc(statuses[s]||s)}</span>`;
 let noticeTimer;
 function notify(message){
@@ -32,7 +32,7 @@ function api(path, options={}){
  return promise;
 }
 async function request(path, options={}){
- const headers={Authorization:`Bearer ${token}`,...options.headers};
+ const headers={...(token?{Authorization:`Bearer ${token}`}:{}),...options.headers};
  if(options.body && !(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
  const response=await fetch('/api'+path,{...options,headers});
  if(!response.ok){let error;try{error=await response.json();}catch{error={detail:'تعذر إكمال الطلب'};}const failure=Error(typeof error.detail==='string'?error.detail:JSON.stringify(error.detail));failure.status=response.status;throw failure;}
@@ -41,9 +41,8 @@ async function request(path, options={}){
 function title(name,subtitle,action=''){return `<div class="page-title"><div><h2>${esc(name)}</h2><p>${esc(subtitle)}</p></div>${action}</div>`;}
 async function init(){
  if(titles[location.hash.slice(1)])view=location.hash.slice(1);
- if(!token)return;
- try{const me=await api('/me');taxonomy=me.taxonomy;caps=me.capabilities||{};$('#identity').textContent=me.reviewer_id+(caps.read_only?' (قراءة فقط)':'');$('#login').hidden=true;$('#content').hidden=false;await render();prefetch();}
- catch(e){if(e.status===401){sessionStorage.removeItem('manhaj-token');token='';}$('#login').hidden=false;$('#content').hidden=true;notify(e.status===401?'رمز الوصول غير صحيح.':'تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.');}
+ try{const me=await api('/me');ready=true;$('#logout').hidden=!!(caps=me.capabilities||{}).public_access;taxonomy=me.taxonomy;caps=me.capabilities||{};$('#identity').textContent=me.reviewer_id+(caps.read_only?' (قراءة فقط)':'');$('#login').hidden=true;$('#content').hidden=false;await render();prefetch();}
+ catch(e){ready=false;if(e.status===401){const had=token;sessionStorage.removeItem('manhaj-token');token='';$('#login').hidden=false;$('#content').hidden=true;if(had)notify('رمز الوصول غير صحيح.');return;}$('#login').hidden=false;$('#content').hidden=true;notify(e.status===401?'رمز الوصول غير صحيح.':'تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.');}
 }
 $('#login-form').addEventListener('submit',e=>{e.preventDefault();token=$('#token').value.trim();sessionStorage.setItem('manhaj-token',token);$('#token').value='';init();});
 $('#logout').addEventListener('click',()=>{sessionStorage.removeItem('manhaj-token');location.reload();});
@@ -51,7 +50,7 @@ $('#logout').addEventListener('click',()=>{sessionStorage.removeItem('manhaj-tok
 // Each tab has its own address (#rules, #review…) so refresh, Back/Forward and shared links keep the place.
 function go(next){if(!titles[next])next='overview';offset=0;query='';status=null;if(location.hash.slice(1)!==next){location.hash=next;return;}view=next;render().catch(e=>notify(e.message));}
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)go(b.dataset.view);});
-window.addEventListener('hashchange',()=>{const next=location.hash.slice(1);if(titles[next]&&token){view=next;offset=0;query='';status=null;render().catch(e=>notify(e.message));}});
+window.addEventListener('hashchange',()=>{const next=location.hash.slice(1);if(titles[next]&&ready){view=next;offset=0;query='';status=null;render().catch(e=>notify(e.message));}});
 // On narrow screens the tabs scroll sideways: keep the active one centred without moving the page vertically.
 function centerTab(b){const n=b.parentElement;if(n.scrollWidth<=n.clientWidth)return;const nr=n.getBoundingClientRect(),br=b.getBoundingClientRect();n.scrollBy({left:br.left-nr.left-(nr.width-br.width)/2});}
 function recordsPath(name,start=0,q='',chosen=name==='review'?'needs_review':''){
@@ -70,7 +69,7 @@ let renderSeq=0;
 const stale=seq=>seq!==renderSeq; // a slower response from a previous tab must not overwrite the current one
 
 async function render(){
- if(!token)return;
+ if(!ready)return;
  renderSeq++;
  const seq=renderSeq;let done=false;$('#content').setAttribute('aria-busy','true');
  // Dim the old page only if the new one takes noticeably long (never after it has already appeared).

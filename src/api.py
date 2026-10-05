@@ -96,10 +96,16 @@ def remote_database(url):
     return (make_url(url).host or '') not in ('localhost', '127.0.0.1', '::1')
 
 
-def create_app(store=None, token_map=None, *, hosted=None, read_only=None, storage=None):
+PUBLIC_REVIEWER = 'visitor'
+
+
+def create_app(store=None, token_map=None, *, hosted=None, read_only=None, storage=None, public_access=None):
     # Validate configuration before touching the database or the (read-only, when hosted) filesystem.
     token_map = token_map if token_map is not None else json.loads(os.getenv('REVIEWER_TOKEN_HASHES', '{}'))
-    if not token_map: raise RuntimeError('Configure reviewer tokens with python scripts/create_reviewer.py; no default credentials exist')
+    # PUBLIC_ACCESS=1 opens the site without a login: requests without a valid token act as one shared
+    # "visitor" reviewer (the daily diagnosis limit then caps everyone together).
+    public_access = _flag('PUBLIC_ACCESS') if public_access is None else public_access
+    if not token_map and not public_access: raise RuntimeError('Configure reviewer tokens with python scripts/create_reviewer.py; no default credentials exist')
     token_map = {rid: str(v).strip().lower() for rid, v in token_map.items()}
     if any(not re.fullmatch(r'[0-9a-f]{64}', v) for v in token_map.values()): raise RuntimeError('Reviewer secrets must be SHA-256 hex digests')
     hosted = bool(os.getenv('VERCEL')) if hosted is None else hosted
@@ -115,7 +121,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
             raise RuntimeError('Hosted deployments require a PostgreSQL DATABASE_URL (Supabase transaction pooler)')
         store = Store(url or None)
     storage = storage or get_storage()
-    store.register_reviewers(token_map)
+    store.register_reviewers([*token_map, *([PUBLIC_REVIEWER] if public_access else [])])
     daily_limit = int(os.getenv('DIAGNOSE_DAILY_LIMIT', '0') or 0)
     # Book pages load straight from private storage through short-lived signed URLs.
     image_sources = "'self' blob: data:" + (f' {storage.url}' if storage.backend == 'supabase' else '')
@@ -124,11 +130,13 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     app.state.store = store
 
     def identity(authorization: Annotated[str | None, Header()] = None):
-        if not authorization or not authorization.startswith('Bearer '): raise HTTPException(401, 'Reviewer authentication required')
-        digest = hashlib.sha256(authorization[7:].encode()).hexdigest()
-        for rid, expected in token_map.items():
-            if hmac.compare_digest(expected, digest): return rid
-        raise HTTPException(401, 'Invalid reviewer token')
+        if authorization and authorization.startswith('Bearer ') and len(authorization) > 7:
+            digest = hashlib.sha256(authorization[7:].encode()).hexdigest()
+            for rid, expected in token_map.items():
+                if hmac.compare_digest(expected, digest): return rid
+            if not public_access: raise HTTPException(401, 'Invalid reviewer token')
+        if public_access: return PUBLIC_REVIEWER
+        raise HTTPException(401, 'Reviewer authentication required')
 
     def heavy():
         if not heavy_allowed: raise HTTPException(409, CLI_ONLY)
@@ -179,7 +187,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.get('/api/me')
     def me(actor=Depends(identity)):
-        return {'reviewer_id': actor, 'taxonomy': SUBPATTERNS, 'capabilities': {'heavy_jobs': heavy_allowed, 'read_only': read_only, 'hosted': hosted, 'storage': storage.backend, 'semantic': bool(os.getenv('EMBEDDING_MODEL')), 'llm': llm_provider(), 'draft_mode': True, 'diagnose_daily_limit': daily_limit or None}}
+        return {'reviewer_id': actor, 'taxonomy': SUBPATTERNS, 'capabilities': {'heavy_jobs': heavy_allowed, 'read_only': read_only, 'hosted': hosted, 'storage': storage.backend, 'semantic': bool(os.getenv('EMBEDDING_MODEL')), 'llm': llm_provider(), 'draft_mode': True, 'public_access': public_access, 'diagnose_daily_limit': daily_limit or None}}
 
     @app.get('/api/summary')
     def summary(actor=Depends(identity)):
