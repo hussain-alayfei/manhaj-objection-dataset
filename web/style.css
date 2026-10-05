@@ -295,9 +295,9 @@ body[data-mode=app] #app{animation:fade-in .3s ease-out both}
 .principle p{font-family:var(--naskh);font-weight:700;font-size:clamp(30px,3.5vw,48px);line-height:1.6;color:var(--green-deep)}
 /* one clause per line, as the principle is read */
 .principle p span{display:block;white-space:nowrap}
-.principle p::before,.principle p::after{color:var(--gold)}
-.principle p::before{content:"«"}
-.principle p::after{content:"»"}
+.principle p span:first-child::before,.principle p span:last-child::after{color:var(--gold)}
+.principle p span:first-child::before{content:"«"}
+.principle p span:last-child::after{content:"»"}
 .land-lead{margin-top:22px;font-size:17px;line-height:2.05;color:#3d4f48;max-width:54ch}
 .land-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
 button.big{min-height:50px;padding:10px 28px;font-size:15.5px}
@@ -347,6 +347,7 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
 
 /* Responsive */
 @media(max-width:980px){.example-grid{grid-template-columns:1fr;gap:28px}.land-steps ol{grid-template-columns:1fr;gap:24px}}
+@media(min-width:761px) and (max-width:1100px){.land-hero::before{background:linear-gradient(to left,#f6f5f0f5 0%,#f6f5f0e6 45%,#f6f5f099 68%,transparent 88%),linear-gradient(to bottom,transparent 70%,var(--bg) 100%),url(/static/img/hero-light.webp) left center/cover no-repeat}}
 @media(max-width:1100px){main{padding:0 24px 40px;margin-right:222px}.sidebar{width:222px}.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.metric:nth-child(3){border-right:0}.metric:nth-child(n+3){border-top:1px solid var(--line)}}
 @media(max-width:760px){
   .sidebar{position:static;width:auto;padding:12px 14px 8px;border-left:0;border-bottom:1px solid var(--line)}
