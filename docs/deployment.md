@@ -84,6 +84,7 @@ python scripts/create_reviewer.py reviewer-03 --env-file .env.production.local -
 | `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `openai` / `text-embedding-3-small` / `768` | نفسه |
 | `STORAGE_BACKEND` / `SUPABASE_URL` / `SUPABASE_SECRET_KEY` / `SUPABASE_STORAGE_BUCKET` | `supabase` / رابط المشروع / المفتاح السري / `sources` | `local` (دون المفتاح السري) |
 | `DIAGNOSE_DAILY_LIMIT` | `50` | `10` |
+| `DIAGNOSE_GLOBAL_DAILY_LIMIT` | `200` (كل الحسابات معًا) | — |
 | `SIGNUP_ENABLED` | `1` (أي شخص ينشئ حسابًا ويراجع) | `1` |
 | `ADMIN_EMAILS` | بريد مسؤول المشروع، مفصولًا بفواصل | — |
 

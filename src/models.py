@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Pattern = Literal['جمع بين مختلفين', 'تفريق بين متماثلين', 'unknown', 'mixed_pattern', 'multiple_claims', 'insufficient_evidence', 'requires_human_review']
 Status = Literal['draft', 'needs_review', 'approved', 'rejected']
@@ -138,8 +138,16 @@ class ReviewRequest(Strict):
     expected_version: int = Field(ge=1)
     action: Literal['approve', 'edit', 'reject', 'reopen']
     changes: dict = Field(default_factory=dict)
-    notes: str = ''
+    notes: str = Field(default='', max_length=5000)
     source_verified: bool = False
     page_verified: bool = False
     diagnosis_verified: bool = False
+
+    # Every review is copied into append-only history several times, so its size is capped.
+    @field_validator('changes')
+    @classmethod
+    def _bounded_changes(cls, value):
+        import json as _json
+        if len(_json.dumps(value, ensure_ascii=False)) > 60000: raise ValueError('التعديلات أطول من المسموح.')
+        return value
 
