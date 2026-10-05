@@ -23,6 +23,8 @@ function notify(message,kind='success'){
  const n=$('#notice');clearTimeout(noticeTimer);
  n.className='notice '+kind;n.setAttribute('role',kind==='error'?'alert':'status');
  n.innerHTML=`<img class="notice-app" src="/static/img/emblem.webp" alt="" width="34" height="34"><div class="notice-text"><div class="notice-meta"><b>مَنْهَج</b><span>الآن</span></div><p></p></div><button type="button" class="notice-close" aria-label="إغلاق الرسالة"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.4" d="M18 6 6 18M6 6l12 12"/></svg></button>`;
+ // technical (non-Arabic) text never reaches the reader
+ if(kind==='error'&&!/[؀-ۿ]/.test(message))message='حدث خطأ غير متوقع. حاول مرة أخرى.';
  n.querySelector('p').textContent=message;
  if(n.showPopover){try{n.hidePopover();}catch{}n.showPopover();}else{(document.querySelector('dialog[open]')||document.body).appendChild(n);n.hidden=false;}
  noticeTimer=setTimeout(hideNotice,kind==='error'?8000:4500);
@@ -61,9 +63,14 @@ function api(path, options={}){
 async function request(path, options={}){
  const headers={...(token?{Authorization:`Bearer ${token}`}:{}),...options.headers};
  if(options.body && !(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
- const response=await fetch('/api'+path,{...options,headers});
+ let response;
+ try{response=await fetch('/api'+path,{...options,headers});}
+ catch{throw Error('تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى.');}
  if(!response.ok){let error;try{error=await response.json();}catch{error={detail:'تعذر إكمال الطلب'};}const failure=Error(typeof error.detail==='string'?error.detail:Array.isArray(error.detail)?'تحقق من البيانات المدخلة.':'تعذر إكمال الطلب');failure.status=response.status;if(response.status===401&&ready&&!path.startsWith('/auth/'))signedOut('انتهت الجلسة. سجّل الدخول من جديد.');throw failure;}
- return options.blob?response.blob():response.json();
+ if(options.blob)return response.blob();
+ // some actions (delete, sign out) answer with no body: that is success, not an error
+ const body=await response.text();
+ return body?JSON.parse(body):null;
 }
 function title(name,subtitle,action=''){return `<div class="page-title"><div><h2>${esc(name)}</h2><p>${esc(subtitle)}</p></div>${action}</div>`;}
 // Two faces: the public introduction for guests, the reviewing desk once signed in.
