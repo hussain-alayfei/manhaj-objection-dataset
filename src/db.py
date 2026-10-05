@@ -535,6 +535,80 @@ class Store:
                 return {rid: (payload or {}).get('name') or rid for rid, payload in c.execute(select(reviewers.c.id, reviewers.c.payload))}
         return self.cached('reviewer_names', load, 120)
 
+    # ---------- A reviewer's own analyses (history, feedback) ----------
+    def my_diagnoses(self, reviewer_id, offset=0, limit=20):
+        t = documents['diagnoses']; p = t.c.payload
+        mine = p['requested_by'].as_string() == reviewer_id
+        with self.reader.connect() as c:
+            total = c.execute(select(func.count()).select_from(t).where(mine)).scalar_one()
+            rows = c.execute(select(t.c.id, p['created_at'].as_string(), p['input_ar'].as_string(), p[('analysis', 'primary_pattern')].as_string(),
+                                    p['mode'].as_string(), p['abstention_reason'].as_string(), p['feedback']).where(mine)
+                             .order_by(p['created_at'].as_string().desc()).offset(offset).limit(limit)).all()
+        items = []
+        for did, created, text, pattern, mode, abstained, feedback in rows:
+            if isinstance(feedback, str): feedback = json.loads(feedback)
+            items.append({'id': did, 'created_at': created, 'input_ar': (text or '')[:280], 'primary_pattern': pattern, 'mode': mode,
+                          'abstention_reason': abstained, 'feedback': feedback})
+        return {'total': total, 'items': items}
+
+    def my_diagnosis(self, reviewer_id, diagnosis_id):
+        doc = self.get_document('diagnoses', diagnosis_id)
+        if doc['payload'].get('requested_by') != reviewer_id: raise KeyError(diagnosis_id)
+        return dict(doc['payload'], id=doc['id'])
+
+    def delete_my_diagnosis(self, reviewer_id, diagnosis_id):
+        self.my_diagnosis(reviewer_id, diagnosis_id)
+        t = documents['diagnoses']
+        with self.engine.begin() as c:
+            c.execute(delete(t).where(t.c.id == diagnosis_id))
+
+    def diagnosis_feedback(self, reviewer_id, diagnosis_id, verdict, note):
+        """A reviewer marks their own analysis as correct or wrong; kept with the analysis for later review."""
+        payload = self.my_diagnosis(reviewer_id, diagnosis_id)
+        payload.pop('id', None)
+        payload['feedback'] = {'verdict': verdict, 'note': note, 'at': now()}
+        t = documents['diagnoses']
+        with self.engine.begin() as c:
+            c.execute(update(t).where(t.c.id == diagnosis_id).values(payload=payload))
+        return payload['feedback']
+
+    # ---------- Account profile ----------
+    def account(self, account_id):
+        with self.reader.connect() as c:
+            row = c.execute(select(accounts.c.email, accounts.c.payload, accounts.c.password_hash).where(accounts.c.id == account_id)).first()
+        if row is None: raise KeyError(account_id)
+        return {'id': account_id, 'email': row.email, 'name': row.payload.get('name', ''), 'created_at': row.payload.get('created_at'), 'password_hash': row.password_hash}
+
+    def update_account(self, account_id, name=None, email=None, password_hash=None, keep_session=None):
+        with self.engine.begin() as c:
+            row = c.execute(select(accounts.c.payload).where(accounts.c.id == account_id)).first()
+            if row is None: raise KeyError(account_id)
+            values = {}
+            if name is not None:
+                values['payload'] = dict(row.payload, name=name)
+                reviewer = c.execute(select(reviewers.c.payload).where(reviewers.c.id == account_id)).first()
+                if reviewer is not None: c.execute(update(reviewers).where(reviewers.c.id == account_id).values(payload=dict(reviewer.payload or {}, name=name)))
+            if email is not None: values['email'] = email
+            if password_hash is not None: values['password_hash'] = password_hash
+            try:
+                if values: c.execute(update(accounts).where(accounts.c.id == account_id).values(**values))
+            except IntegrityError as error:
+                raise Conflict('هذا البريد مسجّل لحساب آخر.') from error
+            if password_hash is not None:
+                # a new password signs out every other device
+                q = update(sessions).where(sessions.c.account_id == account_id, sessions.c.revoked_at.is_(None))
+                if keep_session: q = q.where(sessions.c.token_hash != keep_session)
+                c.execute(q.values(revoked_at=now_s()))
+        with self._session_lock: self._sessions.clear()
+        with self._cache_lock: self._cache.pop('reviewer_names', None)
+
+    def activity(self, reviewer_id):
+        t = documents['diagnoses']
+        with self.reader.connect() as c:
+            analyses = c.execute(select(func.count()).select_from(t).where(t.c.payload['requested_by'].as_string() == reviewer_id)).scalar_one()
+            actions = dict(c.execute(select(reviews.c.payload['action'].as_string(), func.count()).where(reviews.c.reviewer_id == reviewer_id).group_by(reviews.c.payload['action'].as_string())).all())
+        return {'analyses': analyses, 'reviews': sum(actions.values()), 'approved': actions.get('approve', 0), 'edited': actions.get('edit', 0), 'rejected': actions.get('reject', 0)}
+
     def history(self, rid, full=False):
         with self.reader.connect() as c:
             if full: return c.execute(select(versions.c.payload).where(versions.c.record_id == rid).order_by(versions.c.version)).scalars().all()
