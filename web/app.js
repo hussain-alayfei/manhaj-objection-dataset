@@ -44,6 +44,8 @@ function ar(value){
  t=t.replace(/([^\s(\[﴿«"])([(\[﴿«])/g,'$1 $2').replace(/([)\]﴾»])(?=[؀-ۿ0-9])/g,'$1 ');
  t=t.replace(/([(\[«﴿])\s+/g,'$1').replace(/\s+([)\]»﴾])/g,'$1');
  t=t.replace(/[ \t]+([،؛:.!؟,])/g,'$1').replace(/([،؛])(?=[^\s\d])/g,'$1 ');
+ // a one-letter conjunction or preposition stays joined to the quotation it opens: و«مائة عام»
+ t=t.replace(/(^|\s)([وفبلك]) ([«﴿(])/g,'$1$2$3');
  return t;
 }
 const loaderHtml=text=>`<div class="loader" role="status"><span class="loader-mark" aria-hidden="true"></span><span>${esc(text)}</span></div>`;
@@ -68,9 +70,26 @@ async function request(path, options={}){
  catch{throw Error('تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى.');}
  if(!response.ok){let error;try{error=await response.json();}catch{error={detail:'تعذر إكمال الطلب'};}const failure=Error(typeof error.detail==='string'?error.detail:Array.isArray(error.detail)?'تحقق من البيانات المدخلة.':'تعذر إكمال الطلب');failure.status=response.status;if(response.status===401&&ready&&!path.startsWith('/auth/'))signedOut('انتهت الجلسة. سجّل الدخول من جديد.');throw failure;}
  if(options.blob)return response.blob();
+ if(options.stream)return readStream(response,options.stream);
  // some actions (delete, sign out) answer with no body: that is success, not an error
  const body=await response.text();
  return body?JSON.parse(body):null;
+}
+// The live analysis answers with one JSON event per line; the last one carries the saved result.
+async function readStream(response,onEvent){
+ let result=null,buffer='';
+ const handle=line=>{if(!line.trim())return;const event=JSON.parse(line);
+  if(event.type==='result')result=event.data;
+  else if(event.type==='error'){const failure=Error(event.detail||'تعذّر إكمال التحليل. حاول مرة أخرى.');failure.streamed=true;throw failure;}
+  else if(event.type!=='ping')onEvent(event);};
+ const reader=response.body?.getReader?.();
+ if(!reader){(await response.text()).split('\n').forEach(handle);}
+ else{const decoder=new TextDecoder();
+  for(;;){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});
+   let cut;while((cut=buffer.indexOf('\n'))>=0){handle(buffer.slice(0,cut));buffer=buffer.slice(cut+1);}}
+  handle(buffer+decoder.decode());}
+ if(!result){const failure=Error('انقطع الاتصال قبل اكتمال التحليل. إن اكتمل فستجده في سجل تحليلاتك.');failure.streamed=true;throw failure;}
+ return result;
 }
 function title(name,subtitle,action=''){return `<div class="page-title"><div><h2>${esc(name)}</h2><p>${esc(subtitle)}</p></div>${action}</div>`;}
 // Two faces: the public introduction for guests, the reviewing desk once signed in.
@@ -301,7 +320,7 @@ async function overview(){
   <section class="card"><div class="card-head"><h3>بانتظار المراجعة</h3><button class="quiet" data-go="review">عرض الكل</button></div>${records.items.map(r=>`<div class="row"><div class="text"><h4>${esc(ar(r.title_ar))}</h4><p>${esc(where(r))}</p></div><button data-open="${esc(r.id)}">مراجعة</button></div>`).join('')||'<div class="empty">لا توجد حالات بانتظار المراجعة.</div>'}</section>
 
  </div>
- <section class="method-band" aria-labelledby="method-title"><div class="method-inner"><h3 id="method-title">كيف تُحلَّل الشبهة؟</h3><p>أصل المنهج أن الشريعة لا تفرّق بين المتماثلات ولا تجمع بين المختلفات؛ فإما جمعٌ بين مختلفين يُرد عليه ببيان الفرق المؤثر، وإما تفريقٌ بين متماثلين يُرد عليه ببيان وجه التماثل.</p><ol><li>تحرير ما يدّعيه المعترض</li><li>تعيين الطرفين المقارَن بينهما</li><li>الحكم: أجمعٌ بين مختلفين أم تفريقٌ بين متماثلين؟</li><li>ربط الشبهة بقاعدة من الكتاب</li><li>صياغة الرد، ثم مراجعته من مختص</li></ol></div></section>`;
+ <section class="method-band" aria-labelledby="method-title"><div class="method-inner"><h3 id="method-title">كيف يفكر مَنْهَج حين تصله شبهة؟</h3><p>منهج لا يحفظ الأجوبة، بل يتتبع منشأ الشبهة ويفككها بالدليل، على أصل الكتاب: الشريعة لا تفرّق بين المتماثلات، ولا تجمع بين المختلفات.</p><ol class="path">${STEPS.map(x=>`<li${x.core?' class="core"':''}><span aria-hidden="true">${x.mark}</span>${x.name}</li>`).join('')}</ol></div></section>`;
 }
 // ---------- Analyse an objection, with the reviewer's own history ----------
 const when=iso=>iso?new Date(iso).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
@@ -325,8 +344,9 @@ document.addEventListener('change',e=>{
 async function openAnalysis(id){
  const r=await api('/diagnoses/'+id);
  $('#editor-content').innerHTML=`<header class="modal-head"><div class="modal-title"><h3 id="editor-title">تحليل شبهة</h3><small class="muted">${esc(when(r.created_at))}</small>${r.mode==='draft'?'<span class="pill draft">مسودة</span>':''}</div><button data-action="close">إغلاق</button></header>
- <div class="analysis-window"><section class="asked"><h4>الشبهة</h4><blockquote>${esc(ar(r.input_ar))}</blockquote></section><section>${diagnosisHtml(r)}</section></div>
+ <div class="analysis-window">${r.method?`<section class="method in-window" data-method></section>${feedbackHtml(r)}`:`<section class="asked"><h4>الشبهة</h4><blockquote>${esc(ar(r.input_ar))}</blockquote></section><section>${diagnosisHtml(r)}</section>`}</div>
  <footer class="modal-foot"><button type="button" class="danger" data-delete-one="${esc(r.id)}">حذف هذا التحليل</button><button type="button" class="primary" data-action="close">تم</button></footer>`;
+ if(r.method)mountMethod($('#editor-content [data-method]'),methodFromResult(r));
  $('#editor').showModal();$('#editor .analysis-window').scrollTop=0;
 }
 async function refreshHistory(append=false){
@@ -343,12 +363,12 @@ async function analyzeView(){
  const s=await api('/summary').catch(()=>({rules_approved:0}));
  if(stale(seq))return;
  const none=!s.rules_approved; // with no approved rules yet, the book's candidate rules are the only useful source
- $('#content').innerHTML=title('حلّل شبهة','اعرض الشبهة على قواعد الكتاب ليتبيّن موضع الالتباس فيها والقاعدة التي يُرد بها عليها.')+
+ $('#content').innerHTML=title('حلّل شبهة','يحلّل مَنْهَج الشبهة في إحدى عشرة خطوة، من تحرير الدعوى إلى جواب موثّق بمصادره، وتظهر كل خطوة حين تُكتب.')+
  `<section class="analyze">
   <form id="diagnose-form">
    <label for="diagnose-text" class="field-title">نص الشبهة</label>
    <small class="hint">اكتب الشبهة نفسها في جملة أو بضع جمل. وإن ألصقت مقتطفًا من الكتاب، استخرج النظام الشبهة منه.</small>
-   <textarea id="diagnose-text" required maxlength="12000" placeholder="مثال: كيف تقولون إن الإيمان يزيد وينقص، مع أنه تصديق والتصديق لا يتجزأ؟"></textarea>
+   <textarea id="diagnose-text" required maxlength="12000" placeholder="مثال: كيف يقول ﷺ: «سبعين خريفًا»، وفي حديث آخر: «مائة عام»؟ أليس هذا تناقضًا؟"></textarea>
    <fieldset class="segmented" aria-label="القواعد المستعملة في التحليل"><legend class="field-title">القواعد المستعملة</legend>
     <label><input type="radio" name="rules-source" value="approved" ${none?'':'checked'}><span>المعتمدة فقط</span></label>
     <label><input type="radio" name="rules-source" value="all" ${none?'checked':''}><span>كل قواعد الكتاب (مسودة)</span></label>
@@ -357,7 +377,7 @@ async function analyzeView(){
    <div class="analyze-foot"><span></span><div class="form-actions">${caps.semantic&&!caps.read_only&&me_.role==='admin'?'<button type="button" class="quiet" data-action="refresh-index">تحديث البحث</button>':''}<button class="primary big" id="diagnose-submit">حلّل الشبهة</button></div></div>
   </form>
   <p class="ai-note">النتيجة اقتراح آلي يعين على البحث، وليست فتوى ولا حكمًا، ولا تُعتمد قبل أن يراجعها مختص.</p>
-  <div id="diagnosis-result" aria-live="polite"></div>
+  <div id="diagnosis-result"></div>
  </section>
  <section class="my-history" id="my-history"><div class="h-head"><div><h3>سجل تحليلاتك</h3><span class="muted" id="history-count"></span></div><div class="h-tools" id="history-tools" hidden><button type="button" class="quiet" data-select="start">تحديد</button><span class="h-select-tools"><label class="check"><input type="checkbox" id="pick-all">تحديد الكل</label><button type="button" class="danger" data-select="delete" disabled>حذف</button><button type="button" class="quiet" data-select="done">إلغاء</button></span></div></div><div id="history-list">${loaderHtml('جارٍ تحميل السجل')}</div><button type="button" id="history-more" class="more-btn" hidden>عرض المزيد</button></section>`;
  try{await refreshHistory();}catch(err){if(!stale(seq))$('#history-list').innerHTML=`<p class="muted">${esc(err.message)}</p>`;}
@@ -527,6 +547,193 @@ let touchX=null;
 $('#book').addEventListener('touchstart',e=>{touchX=e.touches[0].clientX;},{passive:true});
 $('#book').addEventListener('touchend',e=>{if(touchX===null)return;const dx=e.changedTouches[0].clientX-touchX;touchX=null;if(Math.abs(dx)>60)showPages(book.page+(dx>0?spread():-spread()),dx>0?1:-1);});
 
+// ---------- The method: how Manhaj thinks when an objection arrives ----------
+// Eleven steps and, between the sixth and the seventh, the two governing rules. The analysis streams in,
+// so each step shows the moment it is written; the rail on the side is the path, the panel is the step.
+const BOOK='كتاب «تربية الملكة على كشف الشبهة» للشيخ وليد بن راشد السعيدان';
+const STEPS=[
+ {key:'step1_framing',mark:'1',name:'تحرير الشبهة',tag:'تحويل كلام السائل إلى بنية منطقية واضحة'},
+ {key:'step2_entities',mark:'2',name:'استخراج الكيانات والأدلة',tag:'كل ما تقوم عليه الشبهة… مستخرَج ومصنَّف'},
+ {key:'step3_sources',mark:'3',name:'التحقق من المصادر',tag:'لا جواب يُبنى على نص لا يثبت'},
+ {key:'step4_related',mark:'4',name:'جمع النصوص ذات الصلة',tag:'اجمع قبل أن تحكم'},
+ {key:'step5_language',mark:'5',name:'التحليل اللغوي والدلالي',tag:'اللفظ كما فهمه العرب زمن النص'},
+ {key:'step6_comparison',mark:'6',name:'المقارنة الدلالية',tag:'هل النصان يتحدثان عن الشيء نفسه أصلًا؟'},
+ {key:'governing_rules',mark:'◆',name:'القاعدتان الحاكمتان',tag:'مستفادتان من '+BOOK,core:true},
+ {key:'step7_hypotheses',mark:'7',name:'توليد الفرضيات',tag:'فرضيات متعددة لمنشأ الشبهة، بلا قفز إلى أول تفسير'},
+ {key:'step8_tests',mark:'8',name:'اختبار الفرضيات',tag:'لكل فرضية دليل… وإلا استُبعدت'},
+ {key:'step9_map',mark:'9',name:'بناء خريطة الاستدلال',tag:'من الشبهة إلى النتيجة، خطوة خطوة'},
+ {key:'review',mark:'10',name:'المراجع الناقد',tag:'طبقة ثانية تعترض قبل الإخراج'},
+ {key:'step11_answer',mark:'11',name:'صياغة الجواب',tag:'جواب موثّق… لا فتوى'}];
+const stepAt=key=>STEPS.findIndex(s=>s.key===key);
+const methodViews=new WeakMap();
+const plain=v=>String(v??'').replace(/\s*\(?\b(?:RUL|SHB|FAM)-[0-9a-z]+\b\)?/gi,'').replace(/\s{2,}/g,' ').trim(); // never show internal record codes
+const txt=v=>esc(ar(plain(v)));
+const none='<span class="none">—</span>';
+const listText=list=>(list||[]).filter(x=>String(x).trim()).map(txt).join('، ')||none;
+const ICON_LOOP='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></g></svg>';
+const ICON_SHIELD='<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12l2 2l4-4"/></g></svg>';
+const ICON_LINK='<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m-11 5L21 3m-3 10v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
+const rulesWord=n=>arCount(n,['قاعدة واحدة','قاعدتين','قواعد','قاعدةً','قاعدة']);
+
+function newMethod(input){return {input,steps:{},status:{},checks:{},rounds:[],review:null,current:0,follow:true,phase:'gather',gathered:null,result:null,received:0};}
+function methodFromResult(r){
+ const st=newMethod(r.input_ar);
+ methodDone(st,r);st.follow=false;
+ return st;
+}
+// One event from the live analysis changes the state; the view redraws what changed.
+function methodEvent(st,ev){
+ st.received++;
+ if(ev.type==='gathered')st.gathered=ev;
+ if(ev.type==='stage'){
+  st.phase=ev.stage;
+  if(ev.stage==='critic')st.status.review='active';
+  if(ev.stage==='revise'){for(const s of STEPS)if(s.key!=='review')st.status[s.key]='wait';st.steps={};st.checks={};}
+ }
+ if(ev.type==='active'&&st.status[ev.key]!=='done')st.status[ev.key]='active';
+ if(ev.type==='step'){st.steps[ev.key]=ev.data;st.status[ev.key]=ev.key==='step11_answer'?'draft':'done';if(st.follow)st.current=stepAt(ev.key);}
+ if(ev.type==='verified')st.checks[ev.key]=ev.checks;
+ if(ev.type==='critic'){st.rounds.push(ev.data);st.status.review=ev.data.holds?'done':'fail';if(ev.data.holds)st.status.step11_answer='done';if(st.follow)st.current=stepAt('review');}
+}
+function methodDone(st,r){
+ st.result=r;st.phase='done';
+ const m=r.method;if(!m)return;
+ st.steps={...m.steps};st.review=m.review;st.rounds=m.review?.rounds||[];st.checks={};
+ for(const s of STEPS)st.status[s.key]='done';
+ if(!m.review||m.review.available===false)st.status.review='skip';
+ else if(!m.review.holds)st.status.review='fail';
+ if(st.follow)st.current=stepAt('step11_answer');
+}
+
+function methodHead(st){
+ const r=st.result;
+ if(r){
+  const a=r.analysis,answer=st.steps.step11_answer||{};
+  const consulted=(r.retrieved_rules||[]).length,cited=(a.methodology_rule_ids||[]).length;
+  const by=consulted?`اطّلع التحليل على ${rulesWord(consulted)} من الكتاب${cited?`، واستند إلى ${rulesWord(cited)} منها`:''}.`:'';
+  return `<div class="verdict">${r.mode==='draft'?'<span class="pill draft">مسودة</span>':''}<strong>${esc(patternName(a.primary_pattern))}</strong>${answer.confidence_label?`<span class="pill">${esc(CONF[answer.confidence_label]||answer.confidence_label)}</span>`:''}<span class="pill pending">يحتاج مراجعة مختص</span></div>${by?`<p class="analysis-by">${by}</p>`:''}`;
+ }
+ const active=STEPS.find(s=>st.status[s.key]==='active');
+ const line={gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة…',critic:'يفحص المراجع الناقد الجواب قبل إخراجه…',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّح ما أشار إليه المراجع الناقد…'}[st.phase]
+  ||(active?`يعمل الآن على: ${active.name}`:'يقرأ الشبهة ويحرّرها…');
+  const seen=st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب. `:'';
+ return `<div class="method-live"><span class="pulse" aria-hidden="true"></span><p>${esc(seen+line)}</p>${st.follow?'':'<button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</div>`;
+}
+const RAIL_STATE={done:'اكتملت',active:'جارية الآن',draft:'صيغت وتنتظر المراجعة',fail:'لم يصمد الجواب',skip:'لم تُجرَ',wait:'لم تبدأ بعد'};
+function railHtml(st){
+ return STEPS.map((s,i)=>{const status=st.status[s.key]||'wait';
+  const mark=status==='done'?'✓':status==='fail'?'✗':s.mark;
+  return `<li class="st ${status}${s.core?' core':''}${i===st.current?' current':''}"><button type="button" data-mstep="${i}" aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}"><span class="dot" aria-hidden="true">${mark}</span><span class="st-name">${s.name}</span></button></li>`;}).join('');
+}
+function panelHtml(st){
+ const i=st.current,s=STEPS[i],status=st.status[s.key]||'wait',d=st.steps[s.key];
+ const body=s.key==='review'?reviewHtml(st):d!==undefined?STEP_VIEWS[s.key](d,st):waitingHtml(status);
+ const prev=STEPS[i-1],next=STEPS[i+1];
+ return `<article class="panel${s.core?' core':''}" aria-label="${s.name}"><span class="panel-num" aria-hidden="true">${s.core?'◆':s.mark.padStart(2,'0')}</span><header class="panel-head"><h3>${s.name}</h3><p>${esc(s.tag)}</p></header><div class="panel-body">${body}</div><footer class="panel-nav">${prev?`<button type="button" class="quiet" data-mnav="-1">السابق: ${prev.name}</button>`:'<span></span>'}${next?`<button type="button" class="quiet" data-mnav="1">التالي: ${next.name}</button>`:'<span></span>'}</footer></article>`;
+}
+const waitingHtml=status=>status==='active'?'<div class="panel-wait live"><span class="pulse" aria-hidden="true"></span><p>تُكتب هذه الخطوة الآن…</p></div>':'<div class="panel-wait"><p>لم يصل التحليل إلى هذه الخطوة بعد، وستظهر هنا حين يكتبها.</p></div>';
+
+// Texts and their checks against the Mushaf and the books of hadith
+const KIND={'آية':'نص الآية','حديث':'الحديث','أثر':'الأثر','قول عالم':'قول عالم'};
+const BADGE={verified:'✓ تحقق',excluded:'✗ مستبعد',mismatch:'لم يطابق مصدره',unchecked:'يحتاج تحققًا',unavailable:'تعذّر التحقق الآن',checking:'جارٍ التحقق'};
+const withChecks=(texts,checks)=>(texts||[]).map((t,i)=>({...t,check:t.check||checks?.[i]}));
+function textRow(t){
+ const c=t.check||{},state=t.status==='غير ثابت'?'excluded':c.state||'checking';
+ const claim=[t.source_ar?.trim()?`التخريج: ${txt(t.source_ar)}`:'',t.grade_ar?.trim()?`الدرجة: ${txt(t.grade_ar)}`:''].filter(Boolean).join('، ');
+ let found='';
+ if(state==='verified'){
+  const grades=(c.grades||[]).map(g=>g.by?`${esc(g.by)}: ${esc(g.grade)}`:esc(g.grade)).join('، ');
+  found=`<div class="m-found"><span>${esc(c.label)}: ${esc(c.reference)}${c.corrected?' (صُحّح الموضع)':''}</span>${grades?`<span>${grades}</span>`:''}${c.url?`<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">اعرضه في مصدره ${ICON_LINK}</a>`:''}</div>${c.mushaf_text?`<p class="m-mushaf">﴿${esc(c.mushaf_text)}﴾</p>`:''}`;
+ }else if(state==='excluded')found='<p class="m-check-note">نص لا يثبت، فلا يُبنى عليه الجواب.</p>';
+ else if(state!=='checking'&&c.detail)found=`<p class="m-check-note">${esc(c.detail)}</p>`;
+ return `<li class="m-text ${state}"><div class="m-text-head"><span class="m-kind">${KIND[t.kind]||esc(t.kind)}</span><span class="m-badge ${state}">${BADGE[state]}</span></div><p class="m-text-quote">${txt(t.quote)}</p>${claim?`<p class="m-claim">${claim}</p>`:''}${found}</li>`;
+}
+const ENTITIES=[['verses','الآيات'],['hadiths','الأحاديث'],['key_words','الألفاظ المحورية'],['numbers','الأرقام'],['persons','الأشخاص'],['events','الأحداث'],['rulings','الأحكام'],['terms','المصطلحات'],['claims','ادعاءات تاريخية أو علمية']];
+const DIMENSIONS=['معنى اللفظ في لغة العرب','استعماله زمن النص','السياق','الحقيقة والمجاز','العموم والخصوص','الإطلاق والتقييد','دلالات الأعداد','التكثير والمبالغة','الاشتراك اللفظي','الكناية','الحذف','أساليب الخطاب'];
+const CHECKS6=['جمع بين مختلفين','تفريق بين متماثلين','عام وخاص','مطلق ومقيد','حصر أم تكثير','سياق مختلف','واقعة مختلفة','صحة متساوية'];
+const TONE={'نعم':'yes','لا':'no','محتمل':'maybe','مدعوم بالدليل':'yes','مرفوض':'no'};
+const MAP=[['objection','الشبهة'],['hidden_assumption','الافتراض الخفي','gold'],['fault','موضع الخلل','gold'],['evidence','الدليل'],['rule','القاعدة'],['resolution','إزالة التعارض'],['conclusion','النتيجة','end']];
+const CRITIC=[['misunderstood','هل أسأنا فهم الشبهة؟'],['evidence_proves','هل الدليل يثبت النتيجة فعلًا؟'],['contrary_text','هل يوجد نص يعارض الجواب؟'],['unsourced_attribution','هل نُسب قولٌ لعالم دون مصدر؟'],['possibility_as_certainty','هل جُعل الاحتمال يقينًا؟'],['stronger_explanation','هل يوجد تفسير أقوى؟']];
+const CONF={'قطعي':'قطعي','راجح':'راجح','توجيه معتبر غير قطعي':'توجيه معتبر، غير قطعي','محتمل يحتاج نظرًا':'محتمل يحتاج نظرًا','ضعيف':'ضعيف'};
+const findings=pairs=>pairs.length?`<dl class="m-findings">${pairs.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${txt(v)}</dd></div>`).join('')}</dl>`:'';
+const STEP_VIEWS={
+ step1_framing:(d,st)=>`${st.input?`<blockquote class="m-asked">${esc(ar(st.input))}</blockquote>`:''}<dl class="m-rows">
+  <div><dt>الدعوى</dt><dd>${d.claim?txt(d.claim):none}</dd></div>
+  <div><dt>الأدلة</dt><dd>${(d.evidence||[]).length?`<span class="m-quotes">${d.evidence.map(x=>`<span class="m-q">${txt(x)}</span>`).join('')}</span>`:none}</dd></div>
+  <div><dt>النتيجة المطلوبة</dt><dd>${d.conclusion?txt(d.conclusion):none}</dd></div>
+  <div><dt>المقدّمات الصريحة</dt><dd>${listText(d.premises)}</dd></div>
+  <div class="m-hidden"><dt>الافتراض الخفي</dt><dd>${d.hidden_assumption?txt(d.hidden_assumption):none}</dd></div></dl>`,
+ step2_entities:d=>`<div class="m-tiles">${ENTITIES.map(([k,label])=>{const v=(d[k]||[]).filter(x=>String(x).trim());return `<div class="m-tile${v.length?'':' empty'}"><b>${label}</b><span>${v.length?v.map(txt).join('، '):'—'}</span></div>`;}).join('')}</div>`,
+ step3_sources:(d,st)=>{const texts=withChecks(d.texts,st.checks.step3_sources);
+  return `${texts.length?`<ul class="m-texts">${texts.map(textRow).join('')}</ul>`:'<p class="m-empty">لا تقوم الشبهة على آية ولا حديث.</p>'}${d.variants?.trim()?`<div class="m-note"><b>اختلاف الروايات</b><p>${txt(d.variants)}</p></div>`:''}<p class="m-foot">كل معلومة مربوطة بمصدرها: الآيات تُطابَق بنص المصحف، والأحاديث بكتبها وأرقامها.</p>`;},
+ step4_related:(d,st)=>{const other=withChecks(d.other_texts,st.checks.step4_related);
+  const node=(cls,label,list)=>{const v=(list||[]).filter(x=>String(x).trim());return `<div class="hub-node ${cls}${v.length?'':' empty'}"><b>${label}</b>${v.length?`<ul>${v.slice(0,3).map(x=>`<li>${txt(x)}</li>`).join('')}</ul>`:'<span>—</span>'}</div>`;};
+  const rules=st.result?(st.result.retrieved_rules||[]).length:st.gathered?.rules||0;
+  return `<div class="m-hub">${node('n-top','النصوص الأخرى في الباب',other.map(t=>t.quote))}${node('n-tr','الروايات المختلفة',d.narrations)}${node('n-tl','السياق التاريخي',d.context)}<div class="hub-center"><b>المسألة</b><span>${d.issue?txt(d.issue):'—'}</span></div>${node('n-br','شروح العلماء',d.scholars)}${node('n-bl','القواعد الأصولية',d.usul)}${node('n-bottom','كلام أهل اللغة',d.language)}</div>${rules?`<p class="m-foot">ومن الكتاب: اطّلع التحليل على ${rulesWord(rules)} ذات صلة بالمسألة.</p>`:''}${other.length?`<h4 class="m-sub">التحقق من النصوص الأخرى</h4><ul class="m-texts">${other.map(textRow).join('')}</ul>`:''}`;},
+ step5_language:d=>{const found=new Map((d.findings||[]).map(f=>[f.dimension,f.finding]));
+  return `<div class="m-cells four">${DIMENSIONS.map(x=>`<span class="m-cell${found.has(x)?' on':''}">${x}</span>`).join('')}</div>${findings([...found])||'<p class="m-empty">لم يتبيّن جانب لغوي مؤثر في هذه الشبهة.</p>'}`;},
+ step6_comparison:d=>{const notes=new Map((d.checks||[]).map(c=>[c.check,c.finding]));
+  const q=(label,a)=>`<div class="m-qa"><span>${label}</span><em class="ans ${TONE[a?.answer]||'maybe'}">${esc(a?.answer||'—')}</em>${a?.why?`<p>${txt(a.why)}</p>`:''}</div>`;
+  return `<div class="m-compare"><div class="m-side"><small>النص (أ)</small><b>${d.side_a?txt(d.side_a):'—'}</b></div><div class="m-qs">${q('الشيء نفسه؟',d.same_thing)}${q('الجهة نفسها؟',d.same_aspect)}${q('الدلالة نفسها؟',d.same_meaning)}</div><div class="m-side"><small>النص (ب)</small><b>${d.side_b?txt(d.side_b):'—'}</b></div></div><div class="m-cells">${CHECKS6.map(c=>`<span class="m-cell${notes.has(c)?' on':''}">${c}؟</span>`).join('')}</div>${findings([...notes])}${d.conclusion?`<p class="m-conclusion">${txt(d.conclusion)}</p>`:''}`;},
+ governing_rules:(d,st)=>{const p=d.primary_pattern,gathers=p==='جمع بين مختلفين'||p==='mixed_pattern',splits=p==='تفريق بين متماثلين'||p==='mixed_pattern';
+  const card=(hit,title,sub,art)=>`<div class="rule-card ${hit?'hit':'miss'}"><h4>${title}</h4><p>${sub}</p><div class="rule-art" aria-hidden="true">${art}</div><span class="rule-flag">${hit?'✓ هنا وقع الخلل':'✗ غير منطبق'}</span></div>`;
+  const c=st.steps.step6_comparison,decided=gathers||splits;
+  const rule=st.result?.analysis?.methodology_rule_ar;
+  const cites=(st.result?.source_evidence||[]).map(x=>`<button type="button" class="quiet" data-book="${esc(x.source?.source_id||'')}" data-bookpage="${x.source?.page_number||1}" data-booktitle="${esc(x.source?.source_name||'')}">افتح الكتاب، صفحة ${x.source?.page_number??''}</button>`).join('');
+  return `<div class="m-rules">${card(gathers,'الجمع بين المختلفين','معاملة المختلفين معاملةً واحدة','<i class="sq"></i><b>=</b><i class="ci"></i>')}${card(splits,'التفريق بين المتماثلين','مغايرة المتماثلين في الحكم','<i class="ci"></i><b class="ne">≠</b><i class="ci"></i>')}</div>${decided&&c?.side_a&&c?.side_b?`<p class="rule-pair">${txt(c.side_a)} ↔ ${txt(c.side_b)}</p>`:''}<div class="m-fault"><h4>${decided?`موضع الخلل: ${d.fault?txt(d.fault):esc(patternName(p))}`:esc(patternName(p))}</h4>${d.explanation?`<p>${txt(d.explanation)}</p>`:''}${(d.sub_patterns||[]).length?`<p class="m-subp">${d.sub_patterns.map(x=>`<span class="pill">${esc(subName(x))}</span>`).join(' ')}</p>`:''}</div>${rule?`<div class="m-bookrule"><b>القاعدة من الكتاب</b><p>${txt(rule)}</p>${cites}</div>`:''}`;},
+ step7_hypotheses:d=>`<div class="m-hyps">${(d||[]).map(h=>`<div class="hyp"><small>${esc(h.id)}</small><b>${txt(h.title)}</b>${h.basis?`<p>${txt(h.basis)}</p>`:''}</div>`).join('')}</div>`,
+ step8_tests:(d,st)=>{const titles=new Map((st.steps.step7_hypotheses||[]).map(h=>[h.id,h.title]));
+  return `<div class="m-hyps">${(d||[]).map(t=>{const tone=TONE[t.verdict]||'maybe';return `<div class="hyp ${tone}"><small>${esc(t.id)}</small><b>${txt(titles.get(t.id)||t.id)}</b><span class="verdict-pill ${tone}">${tone==='yes'?'✓ ':tone==='no'?'✗ ':'◆ '}${esc(t.verdict)}</span>${t.evidence?`<p>${txt(t.evidence)}</p>`:''}</div>`;}).join('')}</div><p class="m-motto">لا تفسير جميل بلا مصدر.</p>`;},
+ step9_map:d=>`<ol class="m-map">${MAP.map(([k,label,tone],i)=>`<li class="map-node n${i+1}${tone?' '+tone:''}"><b>${label}</b><span>${d[k]?txt(d[k]):'—'}</span></li>`).join('')}</ol>`,
+ step11_answer:(d,st)=>{const last=st.rounds[st.rounds.length-1],review=st.review||(last?{available:true,holds:last.holds}:null);
+  const reviewed=st.status.step11_answer==='draft'?'<span class="b-wait">بانتظار المراجع الناقد</span>':review?.available===false?'':review?.holds?`<span class="b-ok">${ICON_SHIELD} تمت مراجعة الاستدلال</span>`:review?'<span class="b-warn">بقيت ملاحظات على الاستدلال</span>':'';
+  return `<dl class="m-answer">
+  <div><dt>خلاصة الشبهة</dt><dd>${d.summary?txt(d.summary):none}</dd></div>
+  <div><dt>منشأ الإشكال</dt><dd>${d.origin?txt(d.origin):none}</dd></div>
+  <div><dt>التفكيك</dt><dd>${(d.dismantling||[]).length?`<ol class="m-steps">${d.dismantling.map(x=>`<li><span>${txt(x.step)}</span>${x.evidence?`<small>الدليل: ${txt(x.evidence)}</small>`:''}</li>`).join('')}</ol>`:none}</dd></div>
+  <div><dt>الأدلة والمصادر</dt><dd>${listText(d.sources)}</dd></div>
+  ${d.disagreement?.trim()?`<div><dt>الخلاف في المسألة</dt><dd>${txt(d.disagreement)}</dd></div>`:''}
+  ${d.revealing_question?.trim()?`<div><dt>سؤال يكشف الإشكال</dt><dd>${txt(d.revealing_question)}</dd></div>`:''}
+  <div><dt>درجة الثقة</dt><dd class="m-conf"><span class="conf-track"><i data-conf="${Math.round(Math.min(1,Math.max(0,d.confidence||0))*100)}"></i></span><span>${esc(CONF[d.confidence_label]||d.confidence_label||'')}</span></dd></div>
+  </dl><div class="m-badges"><span class="b-gold">عند الخلاف: يُصرَّح به</span><span>لا يُصدر فتوى، ويُحيل إلى المختص</span>${reviewed}</div>`;},
+};
+function reviewHtml(st){
+ const status=st.status.review||'wait',last=st.rounds[st.rounds.length-1];
+ if(st.review&&st.review.available===false)return '<div class="panel-wait"><p>تعذّر إجراء المراجعة الناقدة هذه المرة، فراجع الجواب بعناية قبل الاعتماد عليه.</p></div>';
+ if(!last)return `<div class="m-critic pending">${CRITIC.map(([,q])=>`<div class="cq"><span class="mark" aria-hidden="true"></span><b>${q}</b></div>`).join('')}</div>${status==='active'?'<div class="panel-wait live"><span class="pulse" aria-hidden="true"></span><p>يفحص المراجع الناقد الجواب الآن…</p></div>':'<div class="panel-wait"><p>تبدأ المراجعة بعد اكتمال صياغة الجواب، فإن لم يصمد عاد إلى التحليل.</p></div>'}`;
+ const first=st.rounds.length>1?st.rounds[0]:null,returning=!last.holds&&st.phase==='revise';
+ return `<div class="m-critic">${CRITIC.map(([k,q])=>{const c=last[k]||{};return `<div class="cq ${c.ok?'ok':'bad'}"><span class="mark" aria-hidden="true">${c.ok?'✓':'✗'}</span><b>${q}</b>${c.note?.trim()?`<p>${txt(c.note)}</p>`:''}</div>`;}).join('')}</div>${first?`<div class="m-loop">${ICON_LOOP}<div><b>لم يصمد الجواب في المراجعة الأولى، فعاد إلى التحليل</b>${first.revision?`<p>${txt(first.revision)}</p>`:''}</div></div>`:''}${status==='active'?'<div class="panel-wait live"><span class="pulse" aria-hidden="true"></span><p>يُعاد فحص الجواب بعد تصحيحه…</p></div>':`<p class="m-verdict ${last.holds?'ok':returning?'loop':'bad'}">${last.holds?`${ICON_SHIELD} صمد الجواب أمام المراجعة`:returning?`${ICON_LOOP} لم يصمد الجواب؟ يعود إلى التحليل`:`بقيت ملاحظات على الجواب، فخُفّضت درجة الثقة.${last.revision?' '+txt(last.revision):''}`}</p>`}`;
+}
+
+function mountMethod(root,st){methodViews.set(root,st);root.innerHTML=`<div class="method-head" data-mhead aria-live="polite"></div><div class="method-body"><ol class="rail" aria-label="خطوات التحليل" data-mrail></ol><div class="stage" data-mstage></div></div>`;updateMethod(root);}
+function updateMethod(root,{animate=0}={}){
+ const st=methodViews.get(root);if(!st)return;
+ // the status line is read aloud when it changes, so it is rewritten only then
+ const head=root.querySelector('[data-mhead]'),headHtml=methodHead(st);if(head.dataset.html!==headHtml){head.innerHTML=headHtml;head.dataset.html=headHtml;}
+ const rail=root.querySelector('[data-mrail]');rail.innerHTML=railHtml(st);
+ const s=STEPS[st.current],stage=root.querySelector('[data-mstage]');
+ const sig=JSON.stringify([st.current,st.status[s.key]||'',st.steps[s.key]??null,st.checks[s.key]??null,s.key==='review'||s.key==='step11_answer'?[st.rounds,st.phase,st.review,st.status.step11_answer]:0,s.key==='governing_rules'?Boolean(st.result):0]);
+ if(stage.dataset.sig!==sig){
+  stage.innerHTML=panelHtml(st);stage.dataset.sig=sig;
+  stage.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
+  if(animate){stage.classList.remove('to-next','to-prev');void stage.offsetWidth;stage.classList.add(animate>0?'to-next':'to-prev');}
+ }
+ // keep the current step in view on the phone's horizontal rail, without moving the page
+ const current=rail.querySelector('.current');
+ if(current&&rail.scrollWidth>rail.clientWidth){const rr=rail.getBoundingClientRect(),cr=current.getBoundingClientRect();rail.scrollBy({left:cr.left-rr.left-(rr.width-cr.width)/2,behavior:calm()?'auto':'smooth'});}
+}
+function goStep(root,index){
+ const st=methodViews.get(root);if(!st)return;
+ const next=Math.min(STEPS.length-1,Math.max(0,index));if(next===st.current)return;
+ const dir=Math.sign(next-st.current);st.current=next;st.follow=false;updateMethod(root,{animate:dir});
+}
+// Left and right arrows move along the path (right-to-left: left is the next step).
+document.addEventListener('keydown',e=>{
+ if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+ const root=e.target.closest?.('[data-method]');if(!root||!e.target.closest('.rail, .panel-nav'))return;
+ e.preventDefault();const st=methodViews.get(root);goStep(root,st.current+(e.key==='ArrowLeft'?1:-1));
+ root.querySelector('.rail .current button')?.focus({preventScroll:true});
+});
 const abstentions={
  no_approved_methodology:['لم تُعتمد قواعد تناسب هذه الشبهة بعد','يستند التحليل إلى قواعد الكتاب المعتمدة وحدها، ولم يُعتمد منها بعد ما ينطبق على هذه الشبهة. يمكنك إعادة التحليل بكل قواعد الكتاب، وتُعلَّم النتيجة «مسودة».'],
  model_or_grounding_validation_failed:['لم يُقبل الاقتراح','اقترح النموذج تشخيصًا لا يستند إلى قاعدة من القواعد التي اطّلع عليها، فاستُبعد حفاظًا على الدقة. جرّب صياغة الشبهة بعبارة أوضح.'],
@@ -539,12 +746,10 @@ function diagnosisHtml(r,{retry=false}={}){
   const again=retry&&r.abstention_reason==='no_approved_methodology'&&r.mode!=='draft'?'<button type="button" class="primary" data-retry-drafts>أعد التحليل بكل قواعد الكتاب</button>':'';
   return `<div class="abstain"><img src="/static/img/emblem.webp" alt="" width="36" height="36"><div><h4>${esc(head)}</h4><p>${esc(why)}</p>${again}</div></div>${feedbackHtml(r)}`;
  }
- const plain=v=>String(v??'').replace(/\s*\(?\b(?:RUL|SHB|FAM)-[0-9a-z]+\b\)?/gi,'').replace(/\s{2,}/g,' ').trim(); // never show internal record codes
  const a=r.analysis,draft=r.mode==='draft',item=(label,value)=>plain(value)?`<dt>${label}</dt><dd>${esc(ar(plain(value)))}</dd>`:'';
  const list=(label,values)=>values&&values.length?`<dt>${label}</dt><dd><ol>${values.map(x=>`<li>${esc(plain(x))}</li>`).join('')}</ol></dd>`:'';
  const cites=r.source_evidence.map(c=>`<li><button class="quiet" data-book="${esc(c.source?.source_id||'')}" data-bookpage="${c.source?.page_number||1}" data-booktitle="${esc(c.source?.source_name||'')}">${esc(c.source?.source_name||'')}، صفحة ${c.source?.page_number??''}</button> ${badge(c.review_status||'approved')}</li>`).join('');
  const consulted=(r.retrieved_rules||[]).length,cited=(a.methodology_rule_ids||[]).length;
- const rulesWord=n=>arCount(n,['قاعدة واحدة','قاعدتين','قواعد','قاعدةً','قاعدة']);
  const by=consulted?`اطّلع النظام على ${rulesWord(consulted)} من الكتاب${cited?`، واستند التشخيص إلى ${rulesWord(cited)} منها`:''}.`:'';
  const note='اقتراح مستند إلى قواعد الكتاب، يحتاج مراجعة مختص.';
  const confidence=a.confidence!=null?` درجة الثقة ${num(Math.round(a.confidence*100))}%.`:'';
@@ -567,6 +772,10 @@ document.addEventListener('click',async e=>{
  if(action==='close')closeDialog($('#editor'));
  if(action==='close-book')closeDialog($('#book'));
  if(action==='close-auth')closeDialog($('#auth'));
+ if(b.dataset.mstep!==undefined)goStep(b.closest('[data-method]'),Number(b.dataset.mstep));
+ if(b.dataset.mnav)goStep(b.closest('[data-method]'),methodViews.get(b.closest('[data-method]')).current+Number(b.dataset.mnav));
+ if(b.hasAttribute('data-mfollow')){const root=b.closest('[data-method]'),st=methodViews.get(root);st.follow=true;
+  const reached=STEPS.reduce((last,s,i)=>['done','draft','fail'].includes(st.status[s.key])?i:last,0);goStep(root,reached);st.follow=true;updateMethod(root);}
  if(b.hasAttribute('data-retry-drafts')){const all=document.querySelector('input[name=rules-source][value=all]');if(all){all.checked=true;$('#diagnose-form').requestSubmit($('#diagnose-submit'));}}
  if(b.id==='history-more')await refreshHistory(true);
  if(b.dataset.diag){if($('#my-history')?.classList.contains('selecting')){const cb=b.parentElement.querySelector('[data-pick]');cb.checked=!cb.checked;updatePicks();}else await openAnalysis(b.dataset.diag);}
@@ -612,7 +821,17 @@ document.addEventListener('submit',async e=>{
  closeDialog($('#editor'));notify(button.value==='approve'?'اعتُمد السجل.':button.value==='reject'?'رُفض السجل.':'حُفظت التعديلات.');await render();
  }
  if(id==='ingest-form'){const form=new FormData();form.append('file',$('#pdf-file').files[0]);form.append('title',$('#pdf-title').value);form.append('author',$('#pdf-author').value);form.append('profile',$('#pdf-profile').value);notify('يجري استخراج الصفحات، وقد يستغرق ذلك عدة دقائق.');const r=await api('/ingest',{method:'POST',body:form});notify('سجلات جديدة بانتظار المراجعة: '+num(r.candidate_count));await render();}
- if(id==='diagnose-form'){$('#diagnosis-result').innerHTML=loaderHtml('يجري التحليل، وقد يأخذ نصف دقيقة');const r=await api('/diagnose',{method:'POST',body:{text:$('#diagnose-text').value,include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all'}});$('#diagnosis-result').innerHTML=diagnosisHtml(r,{retry:true});refreshHistory().catch(()=>{});}
+ if(id==='diagnose-form'){
+  const body={text:$('#diagnose-text').value,include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all'};
+  const box=$('#diagnosis-result');box.innerHTML='<section class="method" data-method></section>';
+  const root=box.firstElementChild,st=newMethod(body.text);mountMethod(root,st);
+  root.scrollIntoView({behavior:calm()?'auto':'smooth',block:'start'});
+  let r;
+  try{r=await api('/diagnose/stream',{method:'POST',body,stream:event=>{const before=st.current;methodEvent(st,event);updateMethod(root,{animate:Math.sign(st.current-before)});}});}
+  catch(err){if(err.status!==404&&err.status!==405)throw err;r=await api('/diagnose',{method:'POST',body});} // a server without the live analysis
+  if(r.method){methodDone(st,r);updateMethod(root,{animate:1});root.insertAdjacentHTML('afterend',feedbackHtml(r));}
+  else box.innerHTML=diagnosisHtml(r,{retry:true});
+  refreshHistory().catch(()=>{});}
  if(id==='research-form'){const r=await api('/research',{method:'POST',body:{topic:$('#research-topic').value,limit:Number($('#research-limit').value)}});notify('حالات جديدة: '+num(r.record_ids.length)+'، ومصادر تعذر الوصول إليها: '+num(r.errors.length));await render();}
  if(id==='gate-form'){await api('/phase-two/enable',{method:'POST',body:{coverage_verified:$('#coverage-check').checked,notes:$('#coverage-notes').value}});notify('وُثّق اكتمال مراجعة الكتاب.');}
  if(id==='benchmark-form'){const ids=s=>$(s).value.split(/[\n,،]/).map(x=>x.trim()).filter(Boolean);await api('/benchmark',{method:'POST',body:{test_ids:ids('#test-ids'),validation_ids:ids('#validation-ids')}});notify('حُفظت مجموعة الاختبار.');await render();}
