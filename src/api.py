@@ -54,6 +54,29 @@ class SignupRequest(BaseModel):
     password: str = Field(max_length=400)
 
 
+class FeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    verdict: Literal['correct', 'wrong']
+    note: str = Field(default='', max_length=1000)
+
+
+class ProfileRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: str = Field(max_length=200)
+
+
+class EmailRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    email: str = Field(max_length=320)
+    password: str = Field(max_length=400)
+
+
+class PasswordRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    current_password: str = Field(max_length=400)
+    new_password: str = Field(max_length=400)
+
+
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     email: str = Field(max_length=320)
@@ -274,6 +297,60 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         token = bearer(authorization)
         if token and len(token) <= 256: store.revoke_session(token)
         return Response(status_code=204)
+
+    # ---------- My analyses ----------
+    @app.get('/api/diagnoses')
+    def my_diagnoses(offset: int = 0, limit: int = 20, actor=Depends(reviewer)):
+        if offset < 0 or offset > 100000 or not 1 <= limit <= 50: raise ValueError('Invalid pagination')
+        return store.my_diagnoses(actor, offset, limit)
+
+    @app.get('/api/diagnoses/{did}')
+    def my_diagnosis(did: str, actor=Depends(reviewer)): return store.my_diagnosis(actor, did)
+
+    @app.delete('/api/diagnoses/{did}', status_code=204)
+    def delete_diagnosis(did: str, actor=Depends(reviewer)):
+        store.delete_my_diagnosis(actor, did)
+        return Response(status_code=204)
+
+    @app.post('/api/diagnoses/{did}/feedback')
+    def diagnosis_feedback(did: str, body: FeedbackRequest, actor=Depends(reviewer)):
+        return store.diagnosis_feedback(actor, did, body.verdict, body.note.strip())
+
+    # ---------- Profile ----------
+    def own_account(request: Request, actor=Depends(reviewer)):
+        if not str(actor).startswith('u-'): raise HTTPException(409, 'حساب التشغيل لا يُعدَّل من هنا.')
+        return actor
+
+    @app.get('/api/account')
+    def account(request: Request, actor=Depends(identity)):
+        info = {'name': request.state.name, 'role': request.state.role, 'editable': False, 'email': None, 'created_at': None}
+        if str(actor).startswith('u-'):
+            acc = store.account(actor)
+            info.update(email=acc['email'], created_at=acc['created_at'], editable=True, name=acc['name'])
+        info['activity'] = store.activity(actor) if request.state.role != 'visitor' else None
+        return info
+
+    @app.patch('/api/account')
+    def update_profile(body: ProfileRequest, actor=Depends(own_account)):
+        name = auth.clean_name(body.name)
+        store.update_account(actor, name=name)
+        return {'name': name}
+
+    @app.post('/api/account/email')
+    def change_email(body: EmailRequest, actor=Depends(own_account)):
+        acc = store.account(actor)
+        if not auth.check_password(body.password, acc['password_hash']): raise HTTPException(403, 'كلمة المرور الحالية غير صحيحة.')
+        email = auth.clean_email(body.email)
+        store.update_account(actor, email=email)
+        return {'email': email}
+
+    @app.post('/api/account/password')
+    def change_password(body: PasswordRequest, request: Request, authorization: Annotated[str | None, Header()] = None, actor=Depends(own_account)):
+        acc = store.account(actor)
+        if not auth.check_password(body.current_password, acc['password_hash']): raise HTTPException(403, 'كلمة المرور الحالية غير صحيحة.')
+        auth.check_new_password(body.new_password, acc['email'])
+        store.update_account(actor, password_hash=auth.hash_password(body.new_password), keep_session=auth.token_hash(bearer(authorization)))
+        return {'changed': True}
 
     @app.get('/api/me')
     def me(request: Request, actor=Depends(identity)):
