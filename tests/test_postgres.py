@@ -48,6 +48,7 @@ def test_postgres_slim_lists_counts_and_history():
             source={'id':'SRC-test','source_type':'book','source_name':'وثيقة اختبار اصطناعية غير دينية','author':'test','sha256':'test','page_count':1}
             c.execute(insert(sources).values(id='SRC-test',sha256='test',payload=source))
             c.execute(insert(chunks).values(id='CH-1',source_id='SRC-test',page_number=1,section='اختبار',text=CHUNK_TEXT,raw_text=CHUNK_TEXT,payload={}))
+    store.register_reviewers(['expert'])
     rid='SHB-pg'+uuid.uuid4().hex[:8]
     store.add(record(rid, sub_patterns=['اختلاف المعنى']))
     approve(store, rid)
