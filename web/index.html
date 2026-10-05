@@ -13,43 +13,13 @@
   <div class="hero-frame" aria-hidden="true">
    <div class="hero-stage">
     <img class="hero-bg" src="/static/img/hero-study.webp" srcset="/static/img/hero-study-1024.webp 1024w, /static/img/hero-study.webp 2048w" sizes="(max-width: 760px) 200vw, 100vw" alt="" width="2048" height="1152" fetchpriority="high">
-    <svg class="mizan" viewBox="0 0 400 430" role="presentation">
-     <defs>
-      <linearGradient id="brass" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#5a3f17"/><stop offset=".35" stop-color="#b8904a"/><stop offset=".55" stop-color="#f1d793"/><stop offset=".75" stop-color="#a57c36"/><stop offset="1" stop-color="#4e3713"/></linearGradient>
-      <linearGradient id="brass-v" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f3dc9c"/><stop offset=".45" stop-color="#b48a43"/><stop offset="1" stop-color="#5b4018"/></linearGradient>
-      <radialGradient id="pan-in" cx=".5" cy=".2" r=".8"><stop offset="0" stop-color="#f6e2aa"/><stop offset=".6" stop-color="#a98140"/><stop offset="1" stop-color="#4f3814"/></radialGradient>
-      <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
-     </defs>
-     <ellipse cx="200" cy="420" rx="120" ry="9" fill="#0b1a12" opacity=".55" filter="url(#soft)"/>
-     <!-- base and pillar -->
-     <path d="M128 414 Q200 398 272 414 L262 400 Q200 386 138 400 Z" fill="url(#brass)"/>
-     <path d="M150 400 Q200 372 250 400 Z" fill="url(#brass)"/>
-     <rect x="193" y="104" width="14" height="282" rx="5" fill="url(#brass)"/>
-     <rect x="186" y="232" width="28" height="9" rx="4" fill="url(#brass)"/>
-     <rect x="188" y="352" width="24" height="10" rx="4" fill="url(#brass)"/>
-     <circle cx="200" cy="64" r="9" fill="url(#brass-v)"/>
-     <rect x="196" y="70" width="8" height="34" rx="3" fill="url(#brass)"/>
-     <!-- left pan: hangs from the beam end and follows it -->
-     <g class="pan pan-l"><g class="swing">
-      <path d="M55 104 L18 246 M55 104 L55 244 M55 104 L92 246" stroke="#9a7431" stroke-width="2" fill="none"/>
-      <circle cx="55" cy="104" r="4.5" fill="url(#brass-v)"/>
-      <path d="M8 246 Q55 286 102 246 Z" fill="url(#pan-in)"/>
-      <ellipse cx="55" cy="246" rx="47" ry="6" fill="url(#brass)"/>
-     </g></g>
-     <!-- right pan -->
-     <g class="pan pan-r"><g class="swing">
-      <path d="M345 104 L308 246 M345 104 L345 244 M345 104 L382 246" stroke="#9a7431" stroke-width="2" fill="none"/>
-      <circle cx="345" cy="104" r="4.5" fill="url(#brass-v)"/>
-      <path d="M298 246 Q345 286 392 246 Z" fill="url(#pan-in)"/>
-      <ellipse cx="345" cy="246" rx="47" ry="6" fill="url(#brass)"/>
-     </g></g>
-     <!-- beam, tilting about the pivot -->
-     <g class="beam">
-      <path d="M52 100 Q200 88 348 100 L348 106 Q200 96 52 106 Z" fill="url(#brass-v)"/>
-      <circle cx="200" cy="100" r="11" fill="url(#brass-v)"/>
-      <circle cx="200" cy="100" r="4" fill="#5a3f17"/>
-      <path d="M200 100 L200 122" stroke="url(#brass)" stroke-width="5" stroke-linecap="round"/>
-     </g>
+    <svg class="mizan" viewBox="0 0 1024 1024" role="presentation">
+     <defs><filter id="soft" x="-50%" y="-200%" width="200%" height="500%"><feGaussianBlur stdDeviation="14"/></filter></defs>
+     <ellipse cx="512" cy="992" rx="230" ry="20" fill="#06130d" opacity=".6" filter="url(#soft)"/>
+     <g class="pan pan-l"><g class="swing"><image href="/static/img/mizan-pan-l.webp" x="12" y="190" width="328" height="555"/></g></g>
+     <g class="pan pan-r"><g class="swing"><image href="/static/img/mizan-pan-r.webp" x="684" y="190" width="328" height="555"/></g></g>
+     <g class="beam"><image href="/static/img/mizan-beam.webp" x="130" y="124" width="764" height="66"/></g>
+     <image href="/static/img/mizan-stand.webp" x="0" y="0" width="1024" height="1024"/>
     </svg>
    </div>
   </div>
