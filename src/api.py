@@ -74,14 +74,14 @@ class DiagnoseRequest(BaseModel):
 
 
 class BenchmarkRequest(BaseModel):
-    test_ids: list[str] = []
-    validation_ids: list[str] = []
+    test_ids: list[Annotated[str, Field(max_length=80)]] = Field(default=[], max_length=2000)
+    validation_ids: list[Annotated[str, Field(max_length=80)]] = Field(default=[], max_length=2000)
     auto: bool = False
 
 
 class GateRequest(BaseModel):
     coverage_verified: bool
-    notes: str
+    notes: str = Field(max_length=5000)
 
 
 class ResearchRequest(BaseModel):
@@ -121,6 +121,7 @@ def remote_database(url):
 
 
 PUBLIC_REVIEWER = 'visitor'
+MAX_BODY = 256 * 1024  # JSON requests only; PDF ingest is local and separate
 
 
 def create_app(store=None, token_map=None, *, hosted=None, read_only=None, storage=None, public_access=None):
@@ -147,13 +148,14 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     storage = storage or get_storage()
     store.register_reviewers([*token_map, *([PUBLIC_REVIEWER] if public_access else [])])
     daily_limit = int(os.getenv('DIAGNOSE_DAILY_LIMIT', '0') or 0)
+    overall_limit = int(os.getenv('DIAGNOSE_GLOBAL_DAILY_LIMIT', '0') or 0)  # all accounts together (OpenAI spend)
     # Accounts: anyone may sign up as a reviewer. Project-wide actions (exports, benchmarks, phase gates,
     # index rebuilds) stay with operator tokens and with accounts listed in ADMIN_EMAILS.
     signup_open = os.getenv('SIGNUP_ENABLED', '1').strip().lower() not in ('0', 'false', 'no')
     admin_emails = {e.strip().lower() for e in os.getenv('ADMIN_EMAILS', '').split(',') if e.strip()}
     # Book pages load straight from private storage through short-lived signed URLs.
     image_sources = "'self' blob: data:" + (f' {storage.url}' if storage.backend == 'supabase' else '')
-    csp = f"default-src 'self'; style-src 'self'; script-src 'self'; img-src {image_sources}; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    csp = f"default-src 'self'; style-src 'self'; script-src 'self'; img-src {image_sources}; frame-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     app = FastAPI(title='مَنْهَج', version='0.2.0', docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
 
@@ -195,12 +197,16 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     async def security_headers(request, call_next):
         # Explicit bearer authentication, same-origin UI, and no cookie sessions.
         origin = request.headers.get('origin')
-        if origin is not None and not same_origin(request, origin):
-            return JSONResponse({'detail': 'Cross-origin request blocked'}, status_code=403)
-        if read_only and request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path not in ('/api/diagnose', '/api/auth/login', '/api/auth/logout'):
-            return JSONResponse({'detail': 'نسخة معاينة للقراءة فقط'}, status_code=403)
         started = time.perf_counter()
-        response = await call_next(request)
+        size = request.headers.get('content-length')
+        if origin is not None and not same_origin(request, origin):
+            response = JSONResponse({'detail': 'Cross-origin request blocked'}, status_code=403)
+        elif read_only and request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path not in ('/api/diagnose', '/api/auth/login', '/api/auth/logout'):
+            response = JSONResponse({'detail': 'نسخة معاينة للقراءة فقط'}, status_code=403)
+        elif request.url.path != '/api/ingest' and size and (not size.isdigit() or int(size) > MAX_BODY):
+            response = JSONResponse({'detail': 'الطلب أكبر من المسموح.'}, status_code=413)
+        else:
+            response = await call_next(request)
         response.headers['Server-Timing'] = f'app;dur={(time.perf_counter() - started) * 1000:.1f}'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
@@ -275,7 +281,9 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     @app.get('/api/records')
     def records(kind: str | None = None, status: str | None = None, phase: int | None = None, q: str = '', offset: int = 0, limit: int = 50, actor=Depends(identity)):
         if kind not in (None, 'rule', 'objection', 'family'): raise ValueError('Invalid kind')
-        if offset < 0 or not 1 <= limit <= 200: raise ValueError('Invalid pagination')
+        if status not in (None, '', 'draft', 'needs_review', 'approved', 'rejected') or phase not in (None, 1, 2): raise ValueError('Invalid filter')
+        if offset < 0 or offset > 100000 or not 1 <= limit <= 200 or len(q) > 200: raise ValueError('Invalid pagination')
+        status = status or None
         if not q: return store.cached(('page', kind, status, phase, offset, limit), lambda: store.page(kind, status, phase, offset, limit))
         rows = [r for r in store.records(kind, status, phase) if q in r['title_ar'] or q in r['objection_text_ar'] or q in r['central_claim_ar']]
         return {'total': len(rows), 'items': rows[offset:offset+limit]}
@@ -304,6 +312,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.get('/api/sources/{sid}/chunks')
     def source_chunks(sid: str, actor=Depends(identity)):
+        source_payload(sid)  # 404 for unknown ids before anything is cached
         # raw_text duplicates whole pages and is not shown in the UI.
         return store.cached(('chunks', sid), lambda: [{k: v for k, v in c.items() if k != 'raw_text'} for c in store.source_chunks(sid)], 300)
 
@@ -379,15 +388,16 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.post('/api/diagnose')
     def diagnosis(request: DiagnoseRequest, actor=Depends(identity)):
-        if daily_limit and not read_only:
-            since = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-            if store.count_documents('diagnoses', 'requested_by', actor, since) >= daily_limit:
-                raise HTTPException(429, 'تجاوزت الحد اليومي للتشخيص')
+        if (daily_limit or overall_limit) and not read_only:
+            day_start = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+            if not store.reserve_usage('diagnose', actor, day_start, daily_limit, overall_limit):
+                raise HTTPException(429, 'بلغت الحد اليومي للتحليل. يتجدد غدًا.')
         return diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only)
 
     @app.get('/api/search')
-    def search(q: str, kind: str | None = None, actor=Depends(identity)):
+    def search(q: str, kind: str | None = None, actor=Depends(reviewer)):
         if kind not in (None, 'rule', 'objection', 'family'): raise ValueError('Invalid kind')
+        if not 1 <= len(q) <= 2000: raise ValueError('Search text must be 1 to 2000 characters')
         return HybridRetriever(store).search(q, kind)
 
     @app.post('/api/embeddings/refresh')

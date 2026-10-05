@@ -8,6 +8,7 @@ import os
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -42,6 +43,7 @@ accounts = Table('accounts', metadata, Column('id', String, primary_key=True), C
 sessions = Table('sessions', metadata, Column('token_hash', String, primary_key=True), Column('account_id', ForeignKey('accounts.id', ondelete='CASCADE'), nullable=False), Column('created_at', BigInteger, nullable=False), Column('expires_at', BigInteger, nullable=False), Column('revoked_at', BigInteger), info=LATER)
 events = Table('events', metadata, Column('id', String, primary_key=True), Column('kind', String, nullable=False), Column('key', String, nullable=False), Column('at', BigInteger, nullable=False), info=LATER)
 KINDS = {'objection': 'objections', 'rule': 'methodology_rules', 'family': 'objection_families'}
+CACHE_ENTRIES = 256
 
 
 def digest(value) -> str:
@@ -92,7 +94,7 @@ class Store:
             else:
                 opts.update(pool_pre_ping=True, pool_size=2, max_overflow=3)
         self.engine = create_engine(url, **opts)
-        self._cache, self._cache_lock = {}, threading.Lock()
+        self._cache, self._cache_lock, self._generation = OrderedDict(), threading.Lock(), 0
         self._sessions, self._session_lock = {}, threading.Lock()
         self.cache_seconds = float(os.getenv('READ_CACHE_SECONDS', '10'))
         if url.startswith('sqlite'):
@@ -115,26 +117,44 @@ class Store:
         now_ = time.monotonic()
         with self._cache_lock:
             hit = self._cache.get(key)
-            if hit and now_ - hit[0] < ttl: return copy.deepcopy(hit[1])
+            if hit and now_ - hit[0] < ttl:
+                self._cache.move_to_end(key)
+                return copy.deepcopy(hit[1])
+            generation = self._generation
         value = compute()
-        with self._cache_lock: self._cache[key] = (now_, value)
+        with self._cache_lock:
+            # A read that started before a write finished must not be cached as fresh.
+            if generation == self._generation:
+                self._cache[key] = (now_, value)
+                self._cache.move_to_end(key)
+                while len(self._cache) > CACHE_ENTRIES: self._cache.popitem(last=False)
         return copy.deepcopy(value)
 
     def clear_cache(self):
-        with self._cache_lock: self._cache.clear()
+        with self._cache_lock:
+            self._generation += 1
+            self._cache.clear()
 
     @contextmanager
-    def transaction(self):
+    def transaction(self, lock=731905, clear=True):
         try:
             with self.engine.begin() as conn:
                 if self.engine.dialect.name == 'sqlite':
                     conn.exec_driver_sql('BEGIN IMMEDIATE')
                 else:
                     # Serialize write/governance operations, including phase and export gates.
-                    conn.exec_driver_sql('SELECT pg_advisory_xact_lock(731905)')
+                    conn.exec_driver_sql(f'SELECT pg_advisory_xact_lock({int(lock)})')
                 yield conn
         finally:
-            self.clear_cache()
+            if clear: self.clear_cache()
+
+    def reserve_usage(self, kind, key, since, per_key, overall=0):
+        """Count and record one use atomically, so parallel requests cannot all slip under a limit."""
+        with self.transaction(lock=731906, clear=False) as c:
+            if per_key and self.count_events(kind, key, since, c) >= per_key: return False
+            if overall and self.count_events(kind, None, since, c) >= overall: return False
+            self.add_event(kind, key, c)
+        return True
 
     def get(self, record_id, conn=None):
         if conn is None:
@@ -263,6 +283,7 @@ class Store:
             if set(req.changes) - allowed: raise ValueError('Source evidence and provenance are immutable; re-ingest a corrected extraction')
             new = copy.deepcopy(old)
             new.update(req.changes)
+            Record.model_validate(new)  # wrong types (e.g. a number where ids are expected) become a 422, not a crash
             from .parsing import normalize_arabic
             if 'objection_text_ar' in req.changes:
                 new['normalized_objection_ar'] = normalize_arabic(new['objection_text_ar'])

@@ -23,6 +23,7 @@
     },
     "notes": {
       "default": "",
+      "maxLength": 5000,
       "title": "Notes",
       "type": "string"
     },

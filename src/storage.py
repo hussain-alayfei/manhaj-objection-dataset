@@ -4,6 +4,7 @@ Object keys are derived from the source id (``<sid>/original.pdf``) so the immut
 source payload never has to change when files move between backends.
 """
 import os
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def object_key(source_id):
-    if not source_id or '/' in source_id or '..' in source_id: raise ValueError('Invalid source id')
+    if not isinstance(source_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', source_id): raise ValueError('Invalid source id')
     return f'{source_id}/original.pdf'
 
 
