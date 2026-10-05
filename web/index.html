@@ -43,6 +43,7 @@
 </div>
 
 <div id="app" class="app">
+ <div id="nav-backdrop"></div>
  <aside class="sidebar">
   <a class="brand" href="#overview" aria-label="مَنْهَج، النظرة العامة"><img src="/static/img/emblem.webp" alt="" width="46" height="46"><h1>مَنْهَج</h1></a>
   <nav id="nav" aria-label="أقسام الموقع">
@@ -60,7 +61,7 @@
   <div class="sidebar-foot"><button id="account-button" class="account-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu"><span class="avatar-i" data-account-initial aria-hidden="true"></span><span class="account-text"><b data-account-name></b><small data-account-sub></small></span><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m7 15 5-5 5 5"/></svg></button></div>
  </aside>
  <main>
-  <header><div>مَنْهَج <span class="muted">/</span> <span id="breadcrumb">نظرة عامة</span></div><button id="identity-button" class="identity" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu"><span class="avatar-i" data-account-initial aria-hidden="true"></span><span data-account-name></span></button></header>
+  <header><div class="crumbs"><button id="nav-toggle" class="nav-toggle" aria-label="إظهار القائمة أو إخفاؤها" aria-controls="nav" aria-expanded="true"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></g></svg></button><span>مَنْهَج <span class="muted">/</span> <span id="breadcrumb">نظرة عامة</span></span></div></header>
   <div id="content"></div>
  </main>
 </div>
@@ -89,7 +90,7 @@
  <button role="menuitem" data-menu="logout" class="menu-danger"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/></g></svg>تسجيل الخروج</button>
 </div>
 <dialog id="confirm" class="alert" aria-labelledby="confirm-title"></dialog>
-<dialog id="profile" class="profile" aria-labelledby="profile-title"></dialog>
+<dialog id="sheet" class="sheet" aria-labelledby="sheet-title"></dialog>
 <dialog id="editor" aria-labelledby="editor-title"><div id="editor-content"></div></dialog>
 <dialog id="book" aria-labelledby="book-title"></dialog>
 </body></html>
