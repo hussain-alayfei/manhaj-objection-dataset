@@ -89,3 +89,16 @@ def test_book_text_is_given_to_the_analyst_as_printed():
     assert printed('مختلفين ، فهم') == 'مختلفين، فهم'
     from src.classification.pipeline import SYSTEM
     assert 'لا تُفتي' in SYSTEM and 'methodology_rule_ids' in SYSTEM
+
+
+def test_bulk_delete_removes_only_my_analyses(store):
+    c = TestClient(create_app(store, TOKENS))
+    a = c.post('/api/auth/signup', json=A).json()['token']
+    b = c.post('/api/auth/signup', json=B).json()['token']
+    mine = [c.post('/api/diagnose', headers=bearer(a), json={'text': f'شبهة {n}'}).json()['id'] for n in range(3)]
+    theirs = c.post('/api/diagnose', headers=bearer(b), json={'text': 'شبهة أخرى'}).json()['id']
+    r = c.post('/api/diagnoses/delete', headers=bearer(a), json={'ids': mine[:2] + [theirs]})
+    assert r.json()['deleted'] == 2
+    assert c.get('/api/diagnoses', headers=bearer(a)).json()['total'] == 1
+    assert c.get('/api/diagnoses', headers=bearer(b)).json()['total'] == 1
+    assert c.post('/api/diagnoses/delete', headers=bearer(a), json={'ids': []}).status_code == 422
