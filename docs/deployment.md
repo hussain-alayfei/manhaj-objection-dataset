@@ -81,6 +81,7 @@ python scripts/create_reviewer.py reviewer-03 --env-file .env.production.local -
 | `REVIEWER_TOKEN_HASHES` | السطر من `.env.production.local` | نفسه |
 | `OPENAI_API_KEY` | مفتاح مشروع OpenAI مع حد إنفاق شهري | — (لا يُضبط) |
 | `LLM_PROVIDER` / `DIAGNOSIS_MODEL` / `DIAGNOSIS_REASONING_EFFORT` | `openai` / `gpt-6.1-sol` / `low` | `none` |
+| `CRITIC_MODEL` / `SOURCE_CHECK_TIMEOUT` | اختياريان: المراجع الناقد على نموذج التحليل نفسه، ومهلة التحقق 6 ثوانٍ | — |
 | `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `openai` / `text-embedding-3-small` / `768` | نفسه |
 | `STORAGE_BACKEND` / `SUPABASE_URL` / `SUPABASE_SECRET_KEY` / `SUPABASE_STORAGE_BUCKET` | `supabase` / رابط المشروع / المفتاح السري / `sources` | `local` (دون المفتاح السري) |
 | `DIAGNOSE_DAILY_LIMIT` | `50` | `10` |

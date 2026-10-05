@@ -7,14 +7,14 @@ from openai.lib._pydantic import to_strict_json_schema
 
 from src.classification import diagnose
 from src.classification.pipeline import OpenAIAnalyst, analyst_payload, get_analyst
-from src.models import SUBPATTERNS, AnalysisProposal, ReviewRequest, SubPattern
+from src.models import SUBPATTERNS, AnalysisProposal, CriticReport, MethodProposal, ReviewRequest, SubPattern
 from src.parsing.model_extraction import ExtractionBatchStrict, OpenAISourceExtractor
 from src.retrieval import HybridRetriever, refresh_embeddings
 from src.retrieval.hybrid import SemanticEncoder
-from conftest import approve, record
+from conftest import approve, method_data, record
 
 
-def proposal(**changes):
+def legacy_proposal(**changes):
     data = dict(central_claim_ar='الفاكهتان متماثلتان', subclaims_ar=[], key_terms_ar=['الوزن'], compared_entities_ar=[{'entity_a': 'تفاحة', 'entity_b': 'تفاحة'}],
                 primary_pattern='جمع بين مختلفين', sub_patterns=['اختلاف الحال'], diagnostic_reason_ar='سوى بين حالتين مختلفتين', revealing_question_ar='ما الفارق المؤثر؟',
                 treatment_ar='بيّن الفارق', response_path_ar=['حرر الدعوى'], methodology_rule_ids=['RUL-test'], confidence=1.4)
@@ -22,24 +22,39 @@ def proposal(**changes):
     return AnalysisProposal.model_validate(data)
 
 
+def proposal(governing=None, **steps):
+    data = method_data(**steps)
+    if governing: data['governing_rules'] = dict(data['governing_rules'], **governing)
+    data['step11_answer']['confidence'] = steps.get('step11_answer', {}).get('confidence', 1.4)
+    return MethodProposal.model_validate(data)
+
+
+HOLDS = CriticReport.model_validate({**{k: {'ok': True, 'note': ''} for k in ('misunderstood', 'evidence_proves', 'contrary_text', 'unsourced_attribution', 'possibility_as_certainty', 'stronger_explanation')}, 'holds': True, 'revision': ''})
+
+
 class FakeResponses:
-    def __init__(self, result=None, error=None):
-        self.result, self.error, self.calls = result, error, []
+    """The analysis answers ``text_format=MethodProposal``; the critical reviewer answers ``CriticReport``."""
+
+    def __init__(self, result=None, error=None, reviews=(HOLDS,)):
+        self.result, self.error, self.reviews, self.calls = result, error, list(reviews), []
 
     def parse(self, **request):
         self.calls.append(request)
         if self.error: raise self.error
+        if request['text_format'] is CriticReport: return SimpleNamespace(output_parsed=self.reviews.pop(0) if len(self.reviews) > 1 else self.reviews[0])
         return SimpleNamespace(output_parsed=self.result)
 
 
-def openai_analyst(monkeypatch, result=None, error=None):
+def openai_analyst(monkeypatch, result=None, error=None, reviews=(HOLDS,)):
     monkeypatch.setenv('DIAGNOSIS_MODEL', 'gpt-test')
-    responses = FakeResponses(result, error)
-    return OpenAIAnalyst(client=SimpleNamespace(responses=responses)), responses
+    responses = FakeResponses(result, error, reviews)
+    analyst = OpenAIAnalyst(client=SimpleNamespace(responses=responses))
+    analyst.streams = False  # these tests exercise the plain call; streaming has its own tests
+    return analyst, responses
 
 
 def test_strict_schemas_are_accepted_by_openai_sdk():
-    for model in (AnalysisProposal, ExtractionBatchStrict):
+    for model in (MethodProposal, CriticReport, AnalysisProposal, ExtractionBatchStrict):
         schema = to_strict_json_schema(model)
         assert schema['additionalProperties'] is False
         assert set(schema['required']) == set(schema['properties'])
@@ -56,10 +71,11 @@ def test_openai_analyst_success_is_grounded(store, monkeypatch):
     assert result['analysis']['confidence'] == 1.0  # clamped
     assert result['analysis_model'] == 'gpt-test' and result['requested_by'] == 'expert'
     call = responses.calls[0]
-    assert call['store'] is False and call['text_format'] is AnalysisProposal and call['reasoning'] == {'effort': 'low'}
+    assert call['store'] is False and call['text_format'] is MethodProposal and call['reasoning'] == {'effort': 'low'}
+    assert responses.calls[1]['text_format'] is CriticReport and result['method']['review']['holds'] is True
 
 
-@pytest.mark.parametrize('result,error', [(None, None), (proposal(), OpenAIError('boom')), (proposal(methodology_rule_ids=['RUL-invented']), None)])
+@pytest.mark.parametrize('result,error', [(None, None), (proposal(), OpenAIError('boom')), (proposal({'methodology_rule_ids': ['RUL-invented']}), None)])
 def test_openai_failures_abstain(store, monkeypatch, result, error):
     store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
     analyst, _ = openai_analyst(monkeypatch, result, error)
@@ -146,7 +162,7 @@ def test_refresh_embeddings_is_incremental(store, monkeypatch):
 
 def test_openai_extractor_converts_strict_batch(monkeypatch):
     monkeypatch.setenv('EXTRACTOR_MODEL', 'gpt-test')
-    item = {'item_type': 'methodology_rule', 'title_ar': 'قاعدة', 'exact_quote': 'افحص الفارق المؤثر', 'analysis': proposal().model_dump()}
+    item = {'item_type': 'methodology_rule', 'title_ar': 'قاعدة', 'exact_quote': 'افحص الفارق المؤثر', 'analysis': legacy_proposal().model_dump()}
     responses = FakeResponses(ExtractionBatchStrict.model_validate({'items': [item]}))
     batch = OpenAISourceExtractor(client=SimpleNamespace(responses=responses)).extract('نص')
     assert batch.items[0].analysis.methodology_rule_ar == '' and responses.calls[0]['store'] is False
@@ -154,8 +170,8 @@ def test_openai_extractor_converts_strict_batch(monkeypatch):
 
 def test_abstention_without_rule_is_kept_but_classification_needs_one(store, monkeypatch):
     store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
-    analyst, _ = openai_analyst(monkeypatch, proposal(primary_pattern='insufficient_evidence', sub_patterns=[], methodology_rule_ids=[], diagnostic_reason_ar='الدعوى غير محددة'))
+    analyst, _ = openai_analyst(monkeypatch, proposal({'primary_pattern': 'insufficient_evidence', 'sub_patterns': [], 'methodology_rule_ids': [], 'fault': '', 'explanation': 'الدعوى غير محددة'}))
     kept = diagnose(store, 'تفاحتين', analyst=analyst)
     assert kept['abstention_reason'] is None and kept['analysis']['diagnostic_reason_ar'] == 'الدعوى غير محددة' and kept['source_evidence'] == []
-    analyst, _ = openai_analyst(monkeypatch, proposal(methodology_rule_ids=[]))
+    analyst, _ = openai_analyst(monkeypatch, proposal({'methodology_rule_ids': []}))
     assert diagnose(store, 'تفاحتين', analyst=analyst)['abstention_reason'] == 'model_or_grounding_validation_failed'

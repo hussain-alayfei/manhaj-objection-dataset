@@ -3,8 +3,10 @@ import hmac
 import json
 import logging
 import os
+import queue
 import re
 import tempfile
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
@@ -12,7 +14,7 @@ from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -42,6 +44,17 @@ IMMUTABLE = 'public, max-age=31536000, immutable'
 def asset_version(path):
     import hashlib as _h
     return _h.sha256(path.read_bytes()).hexdigest()[:12]
+
+
+class CompressExceptStreams:
+    """Gzip for every response except the live analysis, whose small updates must reach the page as they happen."""
+
+    def __init__(self, app):
+        self.app, self.gzip = app, GZipMiddleware(app, minimum_size=1024)
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] == 'http' and scope['path'] == '/api/diagnose/stream': return await self.app(scope, receive, send)
+        return await self.gzip(scope, receive, send)
 
 
 DOCUMENT_KINDS = ('dataset_manifests', 'evaluation_runs', 'extraction_runs', 'duplicate_runs', 'training_exports', 'phase_gates', 'source_items')
@@ -236,7 +249,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         size = request.headers.get('content-length')
         if origin is not None and not same_origin(request, origin):
             response = JSONResponse({'detail': 'Cross-origin request blocked'}, status_code=403)
-        elif read_only and request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path not in ('/api/diagnose', '/api/auth/login', '/api/auth/logout'):
+        elif read_only and request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path not in ('/api/diagnose', '/api/diagnose/stream', '/api/auth/login', '/api/auth/logout'):
             response = JSONResponse({'detail': 'نسخة معاينة للقراءة فقط'}, status_code=403)
         elif request.url.path != '/api/ingest' and size and (not size.isdigit() or int(size) > MAX_BODY):
             response = JSONResponse({'detail': 'الطلب أكبر من المسموح.'}, status_code=413)
@@ -256,7 +269,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         response.headers['Content-Security-Policy'] = csp
         return response
 
-    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    app.add_middleware(CompressExceptStreams)
 
     # Reviewers read every error in Arabic; the English originals stay in code, logs and tests.
     @app.exception_handler(Conflict)
@@ -502,13 +515,44 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
             return {'source_id': src['id'], 'candidate_count': run['new_records']}
         finally: path.unlink(missing_ok=True)
 
-    @app.post('/api/diagnose')
-    def diagnosis(request: DiagnoseRequest, actor=Depends(identity)):
+    def reserve_diagnosis(actor):
         if (daily_limit or overall_limit) and not read_only:
             day_start = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
             if not store.reserve_usage('diagnose', actor, day_start, daily_limit, overall_limit):
                 raise HTTPException(429, 'بلغت الحد اليومي للتحليل. يتجدد غدًا.')
+
+    @app.post('/api/diagnose')
+    def diagnosis(request: DiagnoseRequest, actor=Depends(identity)):
+        reserve_diagnosis(actor)
         return diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only)
+
+    @app.post('/api/diagnose/stream')
+    def diagnosis_stream(request: DiagnoseRequest, actor=Depends(identity)):
+        """The same analysis, reported step by step as newline-delimited JSON while it is written."""
+        reserve_diagnosis(actor)
+        events = queue.Queue()
+
+        def work():
+            try:
+                result = diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only,
+                                  progress=lambda kind, **data: events.put({'type': kind, **data}))
+                events.put({'type': 'result', 'data': result})
+            except ValueError as error:
+                events.put({'type': 'error', 'detail': arabic(str(error))})
+            except Exception:
+                log.exception('streamed diagnosis failed')
+                events.put({'type': 'error', 'detail': 'تعذّر إكمال التحليل. حاول مرة أخرى.'})
+
+        threading.Thread(target=work, daemon=True).start()
+
+        def lines():
+            while True:
+                try: event = events.get(timeout=10)
+                except queue.Empty: event = {'type': 'ping'}  # keeps proxies from closing a quiet connection
+                yield json.dumps(event, ensure_ascii=False) + '\n'
+                if event['type'] in ('result', 'error'): return
+
+        return StreamingResponse(lines(), media_type='application/x-ndjson', headers={'X-Accel-Buffering': 'no'})
 
     @app.get('/api/search')
     def search(q: str, kind: str | None = None, actor=Depends(reviewer)):
