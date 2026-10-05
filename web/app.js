@@ -175,12 +175,25 @@ async function overview(){
  const [s,records]=await Promise.all([api('/summary'),api('/records?kind=objection&status=needs_review&limit=5')]);
  if(stale(seq))return;
  const figures=[['المصادر',s.sources,'كتاب وليد'],['الشبهات',s.objections,'استُخرجت من نص الكتاب'],['القواعد المنهجية',s.rules,'تُراجع قبل استخدامها'],['بانتظار المراجعة',s.pending,`${num(s.approved)} سجل معتمد`]];
- $('#content').innerHTML=title('نظرة عامة','ما ينتظر المراجعة في المشروع الآن.')+
- `<div class="metrics">${figures.map(([label,n,note])=>`<div class="metric"><div class="label">${label}</div><strong>${num(n)}</strong><small>${note}</small></div>`).join('')}</div>
- <div class="hero"><h3>كيف تُحلَّل الشبهة؟</h3><p>أصل المنهج في الكتاب أن الشريعة لا تفرّق بين المتماثلات ولا تجمع بين المختلفات، فكل شبهة إما جمعٌ بين مختلفين فيُرد عليها ببيان الفرق المؤثر، وإما تفريقٌ بين متماثلين فيُرد عليها ببيان وجه التماثل.</p><ol class="steps"><li>تحديد ما يدّعيه المعترض</li><li>تحديد الطرفين المقارَن بينهما</li><li>هل هو جمعٌ بين مختلفين أم تفريقٌ بين متماثلين؟</li><li>ربطه بقاعدة من الكتاب</li><li>صياغة الرد ثم مراجعته من مختص</li></ol></div>
- <div class="two-col"><section class="card"><div class="card-head"><h3>بانتظار المراجعة</h3><button class="quiet" data-go="review">عرض الكل</button></div>${records.items.map(r=>`<div class="row"><div class="text"><h4>${esc(ar(r.title_ar))}</h4><p>${esc(where(r))}</p></div><button data-open="${esc(r.id)}">مراجعة</button></div>`).join('')||'<div class="empty">لا توجد حالات بانتظار المراجعة.</div>'}</section>
- <section class="guarantees"><h3>كيف نضمن صحة البيانات</h3><div class="guarantee"><b>النص من الكتاب نفسه</b><p>كل مقتطف محفوظ برقم صفحته وموضعه في النص.</p></div><div class="guarantee"><b>التحليل اقتراح</b><p>يقترح النظام التشخيص، ويمتنع عنه إذا لم تكفِ الأدلة.</p></div><div class="guarantee"><b>الاعتماد بيد المختص</b><p>لا يُستخدم أي سجل في التقييم أو التدريب قبل أن يعتمده مراجع.</p></div></section></div>
- <section class="card spaced"><h3>حلّل شبهة</h3><p class="muted">اكتب الشبهة كما سمعتها أو قرأتها. سيقترح النظام تشخيصًا مستندًا إلى قواعد الكتاب، والنتيجة اقتراح يراجعه مختص.</p><form id="diagnose-form"><label for="diagnose-text">نص الشبهة</label><textarea id="diagnose-text" required maxlength="12000" placeholder="مثال: لماذا تقولون إن الحكم واحد مع أن الحالتين مختلفتان؟"></textarea><label class="check"><input id="diagnose-drafts" type="checkbox">استخدم أيضًا القواعد التي لم تُراجع بعد (تُعلَّم النتيجة «مسودة»)</label><div class="form-actions"><button class="primary">حلّل الشبهة</button>${caps.semantic&&!caps.read_only?'<button type="button" data-action="refresh-index">تحديث البحث بعد التعديلات</button>':''}</div></form><div id="diagnosis-result" class="spaced" aria-live="polite"></div></section>`;
+ // The page leads with analysing an objection; the queue and the method follow.
+ $('#content').innerHTML=title('نظرة عامة','حلّل شبهة جديدة، أو تابع ما ينتظر المراجعة.')+
+ `<section class="analyze">
+  <div class="analyze-head"><h3>حلّل شبهة</h3><p>اكتب الشبهة كما سمعتها أو قرأتها، وسيقترح النظام تشخيصًا مستندًا إلى قواعد الكتاب. النتيجة اقتراح يراجعه مختص.</p></div>
+  <form id="diagnose-form">
+   <label for="diagnose-text" class="sr-only">نص الشبهة</label>
+   <textarea id="diagnose-text" required maxlength="12000" placeholder="مثال: لماذا تقولون إن الحكم واحد مع أن الحالتين مختلفتان؟"></textarea>
+   <div class="analyze-foot">
+    <label class="check"><input id="diagnose-drafts" type="checkbox">استخدم أيضًا القواعد التي لم تُراجع بعد (تُعلَّم النتيجة «مسودة»)</label>
+    <div class="form-actions">${caps.semantic&&!caps.read_only?'<button type="button" class="quiet" data-action="refresh-index">تحديث البحث بعد التعديلات</button>':''}<button class="primary big">حلّل الشبهة</button></div>
+   </div>
+  </form>
+  <div id="diagnosis-result" aria-live="polite"></div>
+ </section>
+ <div class="metrics">${figures.map(([label,n,note])=>`<div class="metric"><div class="label">${label}</div><strong>${num(n)}</strong><small>${note}</small></div>`).join('')}</div>
+ <div class="two-col">
+  <section class="card"><div class="card-head"><h3>بانتظار المراجعة</h3><button class="quiet" data-go="review">عرض الكل</button></div>${records.items.map(r=>`<div class="row"><div class="text"><h4>${esc(ar(r.title_ar))}</h4><p>${esc(where(r))}</p></div><button data-open="${esc(r.id)}">مراجعة</button></div>`).join('')||'<div class="empty">لا توجد حالات بانتظار المراجعة.</div>'}</section>
+  <section class="card method"><h3>كيف تُحلَّل الشبهة؟</h3><p>أصل المنهج أن الشريعة لا تفرّق بين المتماثلات ولا تجمع بين المختلفات: فإما جمعٌ بين مختلفين يُرد ببيان الفرق المؤثر، وإما تفريقٌ بين متماثلين يُرد ببيان وجه التماثل.</p><ol><li>تحديد ما يدّعيه المعترض</li><li>تحديد الطرفين المقارَن بينهما</li><li>جمعٌ بين مختلفين أم تفريقٌ بين متماثلين؟</li><li>ربطه بقاعدة من الكتاب</li><li>صياغة الرد ثم مراجعته من مختص</li></ol></section>
+ </div>`;
 }
 async function recordsView(){
  const seq=renderSeq;

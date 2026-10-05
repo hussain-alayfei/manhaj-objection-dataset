@@ -124,6 +124,21 @@ main>header #breadcrumb{color:var(--ink)}
 .guarantee b{font-size:14px;color:var(--green)}
 .guarantee p{font-size:13px;color:var(--muted);margin-top:2px}
 
+
+/* Overview: analysing an objection comes first */
+.analyze{background:var(--surface);border:1px solid #d9e3da;border-radius:16px;padding:28px 30px 24px;margin-bottom:26px;box-shadow:0 1px 2px #1c302c0a,0 14px 36px #1c302c12;border-top:4px solid var(--green)}
+.analyze-head h3{font-size:28px;color:var(--green-deep)}
+.analyze-head p{color:var(--muted);font-size:14.5px;margin-top:4px;max-width:70ch}
+.analyze textarea{margin-top:16px;min-height:150px;font-family:var(--naskh);font-size:19px;line-height:2;padding:16px 18px;background:#fbfbf8}
+.analyze-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px 20px;margin-top:14px}
+.analyze-foot .check{margin:0;color:var(--muted)}
+.analyze-foot .form-actions{margin:0;align-items:center}
+#diagnosis-result:not(:empty){margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+.method p{color:var(--muted);font-size:14px;margin:6px 0 12px}
+.method ol{margin:0;padding:0;list-style:none;counter-reset:step;display:grid;gap:8px}
+.method li{counter-increment:step;font-size:14px;padding:8px 12px;background:#f5f7f2;border-radius:8px}
+.method li::before{content:counter(step) "- ";color:var(--gold);font-weight:600}
+
 /* Lists and tables */
 .toolbar{display:flex;align-items:center;gap:12px;margin-bottom:18px}
 .toolbar input{max-width:460px}
