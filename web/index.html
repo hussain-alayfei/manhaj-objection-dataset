@@ -39,6 +39,11 @@
    <li><b>اعتمدها</b><span>الشبهة المعتمدة تصير مرجعًا يُستند إليه في تحليل الشبهات الجديدة.</span></li>
   </ol>
  </section>
+ <section class="land-close" aria-labelledby="close-title">
+  <h2 id="close-title">جاهز للمراجعة؟</h2>
+  <p>أنشئ حسابًا باسمك وبريدك، وابدأ بأول شبهة تنتظر المراجعة.</p>
+  <div class="land-cta"><button class="primary big" data-auth="signup">إنشاء حساب</button><button class="big" data-auth="login">تسجيل الدخول</button></div>
+ </section>
  <footer class="land-foot"><span class="land-brand small"><img src="/static/img/emblem.webp" alt="" width="24" height="24"><span>مَنْهَج</span></span><span>مراجعة الشبهات وفق منهج كتاب وليد السعيدان.</span></footer>
  </div>
 </div>
@@ -65,7 +70,7 @@
  </main>
 </div>
 
-<div id="notice" role="status" hidden></div>
+<div id="notice" popover="manual" role="status"></div>
 <dialog id="auth" aria-labelledby="auth-title">
  <form id="auth-form" class="auth-card" novalidate>
   <button type="button" class="auth-close quiet" data-action="close-auth" aria-label="إغلاق"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.75" d="M18 6L6 18M6 6l12 12"/></svg></button>
@@ -75,7 +80,7 @@
   <div id="name-field"><label for="auth-name">الاسم</label><input id="auth-name" autocomplete="name" maxlength="60"></div>
   <label for="auth-email">البريد الإلكتروني</label><input id="auth-email" type="email" autocomplete="email" dir="ltr" maxlength="254" required>
   <label for="auth-password">كلمة المرور</label><input id="auth-password" type="password" autocomplete="new-password" minlength="8" maxlength="200" required>
-  <small id="pw-hint">8 أحرف على الأقل.</small>
+  <ul id="pw-rules" class="pw-rules" aria-label="شروط كلمة المرور"><li data-rule="length">8 أحرف على الأقل</li><li data-rule="letter">حرف واحد على الأقل</li><li data-rule="digit">رقم واحد على الأقل</li></ul>
   <p id="auth-error" class="auth-error" role="alert" hidden></p>
   <button class="primary" id="auth-submit">إنشاء الحساب</button>
   <p class="auth-switch"><span id="switch-text">لديك حساب؟</span> <button type="button" class="quiet" id="auth-switch">سجّل الدخول</button></p>
