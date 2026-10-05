@@ -562,6 +562,13 @@ class Store:
         with self.engine.begin() as c:
             c.execute(delete(t).where(t.c.id == diagnosis_id))
 
+    def delete_my_diagnoses(self, reviewer_id, ids):
+        """Delete several of the reviewer's own analyses; ids that are not theirs are ignored."""
+        t = documents['diagnoses']
+        with self.engine.begin() as c:
+            result = c.execute(delete(t).where(t.c.id.in_(list(ids)), t.c.payload['requested_by'].as_string() == reviewer_id))
+        return result.rowcount
+
     def diagnosis_feedback(self, reviewer_id, diagnosis_id, verdict, note):
         """A reviewer marks their own analysis as correct or wrong; kept with the analysis for later review."""
         payload = self.my_diagnosis(reviewer_id, diagnosis_id)

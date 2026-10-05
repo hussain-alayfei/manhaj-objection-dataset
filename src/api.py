@@ -54,6 +54,11 @@ class SignupRequest(BaseModel):
     password: str = Field(max_length=400)
 
 
+class BulkDeleteRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    ids: list[Annotated[str, Field(max_length=80)]] = Field(min_length=1, max_length=100)
+
+
 class FeedbackRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     verdict: Literal['correct', 'wrong']
@@ -316,6 +321,10 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     def delete_diagnosis(did: str, actor=Depends(reviewer)):
         store.delete_my_diagnosis(actor, did)
         return Response(status_code=204)
+
+    @app.post('/api/diagnoses/delete')
+    def delete_diagnoses(body: BulkDeleteRequest, actor=Depends(reviewer)):
+        return {'deleted': store.delete_my_diagnoses(actor, set(body.ids))}
 
     @app.post('/api/diagnoses/{did}/feedback')
     def diagnosis_feedback(did: str, body: FeedbackRequest, actor=Depends(reviewer)):
