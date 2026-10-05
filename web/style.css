@@ -55,6 +55,7 @@ button:disabled{opacity:.55;cursor:wait}
 .danger:hover{border-color:var(--red);background:var(--red-tint)}
 .quiet{border:0;min-height:0;background:transparent;padding:4px 0;color:var(--green)}
 .quiet:hover{background:transparent;text-decoration:underline}
+input[type=search]{-webkit-appearance:none;appearance:none}
 input,select,textarea{border:1px solid #d3dbd1;border-radius:8px;background:#fff;padding:10px 12px;width:100%;color:var(--ink);transition:border-color var(--fade),box-shadow var(--fade)}
 textarea{min-height:90px;resize:vertical;line-height:1.9}
 input:focus,textarea:focus,select:focus{outline:0;border-color:var(--green);box-shadow:0 0 0 3px #aac8b866}
@@ -67,9 +68,9 @@ details[open]>*:not(summary){animation:fade-in .25s ease-out both}
 .brand{display:flex;gap:12px;align-items:center;padding:0 8px 22px;margin-bottom:14px;border-bottom:1px solid var(--line)}
 .brand img{width:46px;height:46px;flex:none}
 .brand h1{font-family:var(--ruqaa);font-weight:700;font-size:38px;line-height:1.2;color:var(--green)}
-nav{display:grid;gap:2px}
-nav button{border:0;border-radius:var(--radius);background:transparent;text-align:right;padding:9px 12px;color:#4b5a54;font-size:14px}
-nav button:hover{background:var(--soft);color:var(--ink)}
+nav{display:grid;gap:6px}
+nav button{border:0;border-radius:var(--radius);background:transparent;text-align:right;padding:10px 14px;color:#4b5a54;font-size:14px}
+nav button:hover{background:#f2f5f0;color:var(--ink)}
 nav button span{display:inline-block;width:26px;color:#81968a;transition:color var(--fade)}
 nav button span svg{vertical-align:-4px}
 nav button.active{background:var(--soft);color:var(--green);font-weight:600}
@@ -127,7 +128,7 @@ main>header #breadcrumb{color:var(--ink)}
 .toolbar{display:flex;align-items:center;gap:12px;margin-bottom:18px}
 .toolbar input{max-width:460px}
 .toolbar select{max-width:190px}
-.table-wrap{overflow:auto}
+.table-wrap{overflow:auto;position:relative} /* keeps the hidden column label inside the scroll box on phones */
 table{border-collapse:collapse;width:100%;font-size:13.5px}
 th{text-align:right;font-size:12.5px;font-weight:600;color:var(--muted);padding:12px 14px;background:#f8f9f5;border-bottom:1px solid var(--line)}
 td{padding:16px 14px;border-top:1px solid var(--line);vertical-align:top;transition:background-color var(--fade)}
@@ -148,6 +149,7 @@ td button{min-height:34px;padding:4px 12px;font-size:12.5px}
 .login form{margin:18px 0}
 .login button{margin-top:16px;width:100%}
 
+.lead-note{color:var(--muted);font-size:14px;margin:-6px 0 18px}
 .banner{border:1px solid #e3d7bb;background:#fbf5e8;padding:13px 18px;border-radius:var(--radius);color:#7a5c2b;margin-bottom:18px;font-size:13.5px}
 #notice{position:fixed;bottom:24px;left:24px;max-width:600px;padding:14px 22px;background:#1e3c32;color:#fff;z-index:30;border-radius:var(--radius);box-shadow:0 10px 30px #1c302c33;transition:opacity .25s ease,transform .25s ease}
 #notice.leaving{opacity:0;transform:translateY(6px)}
@@ -157,6 +159,8 @@ dialog{border:1px solid var(--line);border-radius:14px;padding:0;color:var(--ink
 #editor{width:min(1200px,96vw);height:min(92vh,980px);max-height:none;overflow:hidden}
 #editor[open]{display:flex;flex-direction:column}
 #editor-content{display:flex;flex-direction:column;flex:1;min-height:0}
+html:has(dialog[open]){overflow:hidden}
+.evidence-pane,.review-pane,.modal-grid,.chunks,#book{overscroll-behavior:contain}
 dialog::backdrop{background:#14281dcc;backdrop-filter:blur(2px)}
 dialog.closing,dialog.closing::backdrop{animation:fade-out .18s ease-in both}
 .modal-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 24px;border-bottom:1px solid var(--line);background:var(--surface)}
@@ -180,7 +184,9 @@ legend{font-family:var(--naskh);font-size:18px;font-weight:700;color:var(--green
 .field{margin-bottom:12px}
 .field label{margin:8px 0 2px}
 .hint{display:block;margin-bottom:6px;font-size:12px}
-.review-pane textarea{min-height:46px;resize:none;overflow:auto}
+.review-pane textarea{min-height:46px;resize:none;overflow:hidden}
+.review-pane textarea.one-line{min-height:0;line-height:1.7}
+#edit-objection_text_ar,#edit-methodology_rule_ar{font-family:var(--naskh);font-size:17px;line-height:2}
 .more{border-top:1px solid var(--line);padding:12px 0}
 .more summary{color:var(--green);font-weight:600}
 .modal-foot{flex:none;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 18px;padding:12px 24px;border-top:1px solid var(--line);background:var(--surface)}
@@ -204,11 +210,13 @@ legend{font-family:var(--naskh);font-size:18px;font-weight:700;color:var(--green
 .goto input{width:72px;text-align:center;padding:6px 8px}
 .book-tools{display:flex;justify-content:flex-end;align-items:center;gap:14px}
 .book-tools a{font-size:14px}
-.book-stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:stretch;gap:2px;padding:18px;transition:opacity .22s ease}
+.book-stage{flex:1;min-height:0;display:flex;justify-content:center;align-items:stretch;gap:2px;padding:18px;transition:opacity .22s ease;perspective:2400px}
 .book-stage.turning{opacity:0}
 .leaf{margin:0;flex:0 1 auto;display:flex;flex-direction:column;align-items:center;min-width:0;background:#fff;box-shadow:0 2px 14px #1c302c26;border-radius:2px}
 .leaf img{flex:1;min-height:0;max-width:100%;object-fit:contain;display:block}
 .leaf figcaption{flex:none;font-size:12px;color:var(--muted);padding:4px 0 6px;font-variant-numeric:tabular-nums}
+.leaf.lifting{position:relative;z-index:2;backface-visibility:hidden;will-change:transform}
+.leaf.lifting::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to left,#0000 40%,#1c302c1f)}
 .leaf.missing{justify-content:center;padding:40px;color:var(--muted)}
 
 /* Sources */
@@ -241,7 +249,10 @@ legend{font-family:var(--naskh);font-size:18px;font-weight:700;color:var(--green
 @keyframes fade-out{from{opacity:1}to{opacity:0}}
 #content{transition:opacity var(--fade)}
 #content.loading{opacity:.45}
-#content>*,#diagnosis-result>*,#history>*,#login{animation:fade-in .3s ease-out both}
+@keyframes page-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#content.page-in{animation:page-in .34s cubic-bezier(.2,.7,.2,1) both}
+#records-table.refresh tbody,#records-table.refresh .empty{animation:fade-in .22s ease-out both}
+#diagnosis-result>*,#history>*,#login{animation:fade-in .3s ease-out both}
 dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after,::backdrop{animation:none!important;transition:none!important}}
 
