@@ -49,8 +49,8 @@ def test_daily_limit_holds_under_parallel_requests(tmp_path, monkeypatch):
 def test_overall_daily_limit_covers_every_account(store, monkeypatch):
     monkeypatch.setenv('DIAGNOSE_GLOBAL_DAILY_LIMIT', '2')
     c = client(store)
-    a = c.post('/api/auth/signup', json={'name': 'أول', 'email': 'a@example.com', 'password': 'passphrase-a'}).json()['token']
-    b = c.post('/api/auth/signup', json={'name': 'ثان', 'email': 'b@example.com', 'password': 'passphrase-b'}).json()['token']
+    a = c.post('/api/auth/signup', json={'name': 'أول', 'email': 'a@example.com', 'password': 'passphrase-a1'}).json()['token']
+    b = c.post('/api/auth/signup', json={'name': 'ثان', 'email': 'b@example.com', 'password': 'passphrase-b2'}).json()['token']
     codes = [c.post('/api/diagnose', headers={'Authorization': 'Bearer ' + t}, json={'text': 'مثال'}).status_code for t in (a, b, a)]
     assert codes == [200, 200, 429]
 

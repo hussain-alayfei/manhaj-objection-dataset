@@ -21,6 +21,7 @@ from sqlalchemy.engine import make_url
 import time
 
 from . import auth
+from .messages import arabic
 from .classification import diagnose
 from .db import Conflict, Store, normalize_database_url, sources
 from .llm import llm_provider, validate_config
@@ -224,14 +225,20 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+    # Reviewers read every error in Arabic; the English originals stay in code, logs and tests.
     @app.exception_handler(Conflict)
-    async def conflict_error(_, exc): return JSONResponse({'detail': str(exc)}, status_code=409)
+    async def conflict_error(_, exc): return JSONResponse({'detail': arabic(str(exc))}, status_code=409)
 
     @app.exception_handler(ValueError)
-    async def value_error(_, exc): return JSONResponse({'detail': str(exc)}, status_code=422)
+    async def value_error(_, exc): return JSONResponse({'detail': arabic(str(exc))}, status_code=422)
 
     @app.exception_handler(KeyError)
-    async def missing_error(_, exc): return JSONResponse({'detail': 'Record not found'}, status_code=404)
+    async def missing_error(_, exc): return JSONResponse({'detail': arabic('Record not found')}, status_code=404)
+
+    @app.exception_handler(HTTPException)
+    async def http_error(_, exc):
+        detail = arabic(exc.detail) if isinstance(exc.detail, str) else exc.detail
+        return JSONResponse({'detail': detail}, status_code=exc.status_code, headers=getattr(exc, 'headers', None))
 
     @app.get('/health')
     def health():
