@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import (JSON, BigInteger, Column, ForeignKey, Integer, MetaData, String, Table,
-                        UniqueConstraint, create_engine, delete, event, func, insert, inspect, or_, select, update)
+                        UniqueConstraint, create_engine, delete, event, func, insert, inspect, literal, or_, select, union_all, update)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool, StaticPool
@@ -44,6 +44,29 @@ sessions = Table('sessions', metadata, Column('token_hash', String, primary_key=
 events = Table('events', metadata, Column('id', String, primary_key=True), Column('kind', String, nullable=False), Column('key', String, nullable=False), Column('at', BigInteger, nullable=False), info=LATER)
 KINDS = {'objection': 'objections', 'rule': 'methodology_rules', 'family': 'objection_families'}
 CACHE_ENTRIES = 256
+PREFIXES = {'SHB-': 'objections', 'RUL-': 'methodology_rules', 'FAM-': 'objection_families'}
+
+
+def _tables_for(record_id):
+    """Record tables to look in, most likely first (ids carry their kind as a prefix)."""
+    first = next((name for prefix, name in PREFIXES.items() if str(record_id).startswith(prefix)), None)
+    return [tables[first], *(t for n, t in tables.items() if n != first)] if first else list(tables.values())
+
+
+def _summary_select(table, *extra):
+    p = table.c.payload
+    return select(table.c.id, table.c.status, table.c.phase, p['kind'].as_string().label('kind'), p['title_ar'].as_string().label('title_ar'),
+                  p['primary_pattern'].as_string().label('primary_pattern'), p['sub_patterns'].label('sub_patterns'),
+                  p[('source', 'source_name')].as_string().label('source_name'), p[('source', 'page_number')].as_string().label('page_number'), *extra)
+
+
+def _summary(row):
+    subs = row.sub_patterns
+    if isinstance(subs, str): subs = json.loads(subs)
+    page = row.page_number
+    source = None if row.source_name is None and page is None else {'source_name': row.source_name, 'page_number': int(page) if page not in (None, '') else None}
+    return {'id': row.id, 'kind': row.kind, 'title_ar': row.title_ar or '', 'primary_pattern': row.primary_pattern, 'sub_patterns': subs or [],
+            'review_status': row.status, 'phase': row.phase, 'source': source}
 
 
 def digest(value) -> str:
@@ -82,18 +105,21 @@ class Store:
             host = parsed.host or ''
             # Supavisor transaction mode (and Supabase in general) cannot use server-side prepared statements.
             # TCP keepalives so long CLI jobs survive idle gaps on flaky networks.
-            opts['connect_args'] = {'prepare_threshold': None, 'connect_timeout': 15, 'keepalives': 1, 'keepalives_idle': 30, 'keepalives_interval': 10, 'keepalives_count': 5}
+            opts['connect_args'] = {'prepare_threshold': None, 'connect_timeout': 15, 'keepalives': 1, 'keepalives_idle': 30, 'keepalives_interval': 10, 'keepalives_count': 5, 'tcp_user_timeout': 10000}
             if host.endswith(('.supabase.com', '.supabase.co')) and 'sslmode' not in parsed.query:
                 opts['connect_args']['sslmode'] = 'require'
             if os.getenv('VERCEL'):
                 # Fluid compute reuses warm instances: keep one or two pooler connections open instead of
                 # paying a new TCP+TLS handshake per request; pre-ping replaces connections the pooler closed.
-                opts.update(pool_pre_ping=True, pool_size=1, max_overflow=4, pool_recycle=60)
+                opts.update(pool_pre_ping=True, pool_size=2, max_overflow=3, pool_recycle=300)
             elif parsed.port == 6543:
                 opts['poolclass'] = NullPool
             else:
                 opts.update(pool_pre_ping=True, pool_size=2, max_overflow=3)
         self.engine = create_engine(url, **opts)
+        # Plain reads run in autocommit on Postgres: each statement is its own snapshot (READ COMMITTED
+        # already behaves so), and psycopg skips the BEGIN/ROLLBACK round trips. Safe on the transaction pooler.
+        self.reader = self.engine.execution_options(isolation_level='AUTOCOMMIT') if not url.startswith('sqlite') else self.engine
         self._cache, self._cache_lock, self._generation = OrderedDict(), threading.Lock(), 0
         self._sessions, self._session_lock = {}, threading.Lock()
         self.cache_seconds = float(os.getenv('READ_CACHE_SECONDS', '10'))
@@ -158,17 +184,26 @@ class Store:
 
     def get(self, record_id, conn=None):
         if conn is None:
-            with self.engine.connect() as c:
+            with self.reader.connect() as c:
                 return self.get(record_id, c)
-        for table in tables.values():
+        for table in _tables_for(record_id):
             row = conn.execute(select(table.c.payload).where(table.c.id == record_id)).scalar_one_or_none()
             if row is not None:
                 return copy.deepcopy(row)
         raise KeyError(record_id)
 
+    def get_many(self, ids, conn):
+        """Payloads for many records in at most one query per record table."""
+        wanted, found = set(ids), {}
+        for table in tables.values():
+            if not wanted - set(found): break
+            for rid, payload in conn.execute(select(table.c.id, table.c.payload).where(table.c.id.in_(sorted(wanted - set(found))))):
+                found[rid] = payload
+        return found
+
     def records(self, kind=None, status=None, phase=None, conn=None):
         if conn is None:
-            with self.engine.connect() as c:
+            with self.reader.connect() as c:
                 return self.records(kind, status, phase, c)
         result = []
         for table in ([tables[KINDS[kind]]] if kind else tables.values()):
@@ -179,44 +214,66 @@ class Store:
         return copy.deepcopy(result)
 
     def page(self, kind=None, status=None, phase=None, offset=0, limit=50):
-        """Count and slice in SQL so list views never move the whole corpus over the network."""
-        with self.engine.connect() as c:
+        """Count and slice in SQL, returning only the fields list views show (a few hundred bytes per row
+        instead of the full ~13 KB record with its source spans)."""
+        with self.reader.connect() as c:
             selected = [tables[KINDS[kind]]] if kind else list(tables.values())
             def scoped(table, q):
                 if status: q = q.where(table.c.status == status)
                 if phase: q = q.where(table.c.phase == phase)
                 return q
-            total = sum(c.execute(scoped(t, select(func.count()).select_from(t))).scalar_one() for t in selected)
+            counts = [c.execute(scoped(t, select(func.count()).select_from(t))).scalar_one() for t in selected]
             items, skip = [], offset
-            for table in selected:
+            for table, count in zip(selected, counts):
                 if len(items) >= limit: break
-                count = c.execute(scoped(table, select(func.count()).select_from(table))).scalar_one()
                 if skip >= count:
                     skip -= count; continue
-                q = scoped(table, select(table.c.payload).order_by(table.c.id)).offset(skip).limit(limit - len(items))
-                items.extend(c.execute(q).scalars().all())
+                q = scoped(table, _summary_select(table).order_by(table.c.id)).offset(skip).limit(limit - len(items))
+                items.extend(_summary(row) for row in c.execute(q))
                 skip = 0
-            return {'total': total, 'items': copy.deepcopy(items)}
+            return {'total': sum(counts), 'items': items}
+
+    def search_rows(self, kind=None, status=None, phase=None):
+        """Summaries plus normalized searchable text, for the list search box."""
+        from .parsing import normalize_arabic
+        with self.reader.connect() as c:
+            out = []
+            for table in ([tables[KINDS[kind]]] if kind else tables.values()):
+                p = table.c.payload
+                q = _summary_select(table, p['objection_text_ar'].as_string().label('objection_text_ar'), p['central_claim_ar'].as_string().label('central_claim_ar'), p['methodology_rule_ar'].as_string().label('methodology_rule_ar')).order_by(table.c.id)
+                if status: q = q.where(table.c.status == status)
+                if phase: q = q.where(table.c.phase == phase)
+                for row in c.execute(q):
+                    item = _summary(row)
+                    item['_text'] = normalize_arabic(' '.join(x or '' for x in (row.title_ar, row.objection_text_ar, row.central_claim_ar, row.methodology_rule_ar, row.id)))
+                    out.append(item)
+            return out
 
     def counts(self):
         """Status/phase totals per record kind, computed in SQL."""
-        out = {}
-        with self.engine.connect() as c:
-            for kind, name in KINDS.items():
-                t = tables[name]
-                out[kind] = [dict(r._mapping) for r in c.execute(select(t.c.status, t.c.phase, func.count().label('n')).group_by(t.c.status, t.c.phase))]
-            out['sources'] = c.execute(select(func.count()).select_from(sources)).scalar_one()
+        parts = [select(literal(kind).label('kind'), t.c.status, t.c.phase, func.count().label('n')).group_by(t.c.status, t.c.phase) for kind, t in ((k, tables[n]) for k, n in KINDS.items())]
+        parts.append(select(literal('sources').label('kind'), literal(None).label('status'), literal(None).label('phase'), func.count().label('n')).select_from(sources))
+        out = {kind: [] for kind in KINDS}
+        with self.reader.connect() as c:
+            for row in c.execute(union_all(*parts)):
+                if row.kind == 'sources': out['sources'] = row.n
+                else: out[row.kind].append({'status': row.status, 'phase': row.phase, 'n': row.n})
         return out
 
     def source_list(self, conn=None):
         if conn is None:
-            with self.engine.connect() as c: return self.source_list(c)
+            with self.reader.connect() as c: return self.source_list(c)
         return conn.execute(select(sources.c.payload)).scalars().all()
 
     def source_chunks(self, source_id, conn=None):
         if conn is None:
-            with self.engine.connect() as c: return self.source_chunks(source_id, c)
+            with self.reader.connect() as c: return self.source_chunks(source_id, c)
         return [dict(r._mapping) for r in conn.execute(select(chunks).where(chunks.c.source_id == source_id).order_by(chunks.c.page_number, chunks.c.id))]
+
+    def chunk_list(self, source_id):
+        """Chunks without the raw extraction text (the reading view never shows it)."""
+        with self.reader.connect() as c:
+            return [dict(r._mapping) for r in c.execute(select(chunks.c.id, chunks.c.source_id, chunks.c.page_number, chunks.c.section, chunks.c.text, chunks.c.payload).where(chunks.c.source_id == source_id).order_by(chunks.c.page_number, chunks.c.id))]
 
     def verify_source(self, record, conn):
         citation = record.get('source')
@@ -347,16 +404,16 @@ class Store:
 
     def eligible(self, kind=None, conn=None):
         if conn is None:
-            with self.engine.connect() as c: return self.eligible(kind, c)
-        out = []
-        for r in self.records(kind, 'approved', conn=conn):
-            if not r['human_review'] or r['human_review']['action'] != 'approve': continue
+            with self.reader.connect() as c: return self.eligible(kind, c)
+        out, approved = [], [r for r in self.records(kind, 'approved', conn=conn) if r['human_review'] and r['human_review']['action'] == 'approve']
+        linked = self.get_many({x for r in approved for x in (r['methodology_rule_ids'] if r['kind'] == 'objection' else r['examples'] if r['kind'] == 'family' else [])}, conn)
+        for r in approved:
             if r['kind'] == 'objection':
-                rules = [self.get(x, conn) for x in r['methodology_rule_ids']]
-                if any(x['review_status'] != 'approved' for x in rules): continue
+                rules = [linked.get(x) for x in r['methodology_rule_ids']]
+                if any(x is None or x['review_status'] != 'approved' for x in rules): continue
                 # A rule edited after this objection was approved invalidates the copied rule text.
                 if rules and r['methodology_rule_ar'] != '\n'.join(x['methodology_rule_ar'] for x in rules): continue
-            if r['kind'] == 'family' and any(self.get(x, conn)['review_status'] != 'approved' for x in r['examples']): continue
+            if r['kind'] == 'family' and any(linked.get(x) is None or linked[x]['review_status'] != 'approved' for x in r['examples']): continue
             out.append(r)
         return out
 
@@ -390,7 +447,7 @@ class Store:
 
     def list_documents(self, kind, conn=None):
         if conn is None:
-            with self.engine.connect() as c: return self.list_documents(kind, c)
+            with self.reader.connect() as c: return self.list_documents(kind, c)
         return [dict(r._mapping) for r in conn.execute(select(documents[kind]).order_by(documents[kind].c.id))]
 
     def get_document(self, kind, doc_id):
@@ -426,7 +483,7 @@ class Store:
         return account_id
 
     def account_by_email(self, email):
-        with self.engine.connect() as c:
+        with self.reader.connect() as c:
             row = c.execute(select(accounts.c.id, accounts.c.password_hash, accounts.c.payload).where(accounts.c.email == email)).first()
         return None if row is None else {'id': row.id, 'password_hash': row.password_hash, 'name': row.payload.get('name', '')}
 
@@ -443,7 +500,7 @@ class Store:
         with self._session_lock:
             hit = self._sessions.get(key)
         if hit and hit[0] > clock: return hit[1]
-        with self.engine.connect() as c:
+        with self.reader.connect() as c:
             row = c.execute(select(accounts.c.id, accounts.c.email, accounts.c.payload).join(sessions, sessions.c.account_id == accounts.c.id)
                             .where(sessions.c.token_hash == key, sessions.c.revoked_at.is_(None), sessions.c.expires_at > now_s())).first()
         value = None if row is None else {'id': row.id, 'email': row.email, 'name': row.payload.get('name') or row.id}
@@ -467,17 +524,20 @@ class Store:
 
     def count_events(self, kind, key, since, conn=None):
         if conn is None:
-            with self.engine.connect() as c: return self.count_events(kind, key, since, c)
+            with self.reader.connect() as c: return self.count_events(kind, key, since, c)
         q = select(func.count()).select_from(events).where(events.c.kind == kind, events.c.at >= since)
         if key is not None: q = q.where(events.c.key == key)
         return conn.execute(q).scalar_one()
 
     def reviewer_names(self):
         def load():
-            with self.engine.connect() as c:
+            with self.reader.connect() as c:
                 return {rid: (payload or {}).get('name') or rid for rid, payload in c.execute(select(reviewers.c.id, reviewers.c.payload))}
         return self.cached('reviewer_names', load, 120)
 
-    def history(self, rid):
-        with self.engine.connect() as c:
-            return c.execute(select(versions.c.payload).where(versions.c.record_id == rid).order_by(versions.c.version)).scalars().all()
+    def history(self, rid, full=False):
+        with self.reader.connect() as c:
+            if full: return c.execute(select(versions.c.payload).where(versions.c.record_id == rid).order_by(versions.c.version)).scalars().all()
+            p = versions.c.payload
+            rows = c.execute(select(versions.c.version, p['action'].as_string(), p['actor'].as_string(), p['at'].as_string()).where(versions.c.record_id == rid).order_by(versions.c.version))
+            return [{'snapshot': {'version': v}, 'action': action, 'actor': actor, 'at': at} for v, action, actor, at in rows]

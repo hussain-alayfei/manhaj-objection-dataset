@@ -25,6 +25,7 @@ from .classification import diagnose
 from .db import Conflict, Store, normalize_database_url, sources
 from .llm import llm_provider, validate_config
 from .models import ReviewRequest, SUBPATTERNS
+from .parsing import normalize_arabic
 from .retrieval import HybridRetriever, refresh_embeddings
 from .retrieval.hybrid import SemanticEncoder
 from .storage import get_storage, page_key
@@ -33,7 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger('manhaj.api')
 CLI_ONLY = 'متاح من سطر الأوامر فقط في النسخة المستضافة'
 # Heavy summary fields stay out of list responses (Vercel caps responses at 4.5 MB); fetch details by id.
-HEAVY_DOCUMENT_FIELDS = {'dataset_manifests': ('records',), 'extraction_runs': ('inventory',), 'duplicate_runs': ('suggestions', 'pairs'), 'evaluation_runs': ('predictions',)}
+HEAVY_DOCUMENT_FIELDS = {'dataset_manifests': ('records',), 'extraction_runs': ('inventory',), 'duplicate_runs': ('suggestions', 'pairs'), 'evaluation_runs': ('predictions', 'per_case'), 'training_exports': ('records',)}
 IMMUTABLE = 'public, max-age=31536000, immutable'
 
 
@@ -284,8 +285,10 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         if status not in (None, '', 'draft', 'needs_review', 'approved', 'rejected') or phase not in (None, 1, 2): raise ValueError('Invalid filter')
         if offset < 0 or offset > 100000 or not 1 <= limit <= 200 or len(q) > 200: raise ValueError('Invalid pagination')
         status = status or None
-        if not q: return store.cached(('page', kind, status, phase, offset, limit), lambda: store.page(kind, status, phase, offset, limit))
-        rows = [r for r in store.records(kind, status, phase) if q in r['title_ar'] or q in r['objection_text_ar'] or q in r['central_claim_ar']]
+        if not q.strip(): return store.cached(('page', kind, status, phase, offset, limit), lambda: store.page(kind, status, phase, offset, limit))
+        # Arabic-aware search (hamza and diacritics ignored) over a cached, slim index of the list.
+        needle = normalize_arabic(q)
+        rows = [{k: v for k, v in r.items() if k != '_text'} for r in store.cached(('search', kind, status, phase), lambda: store.search_rows(kind, status, phase), 30) if needle in r['_text']]
         return {'total': len(rows), 'items': rows[offset:offset+limit]}
 
     @app.get('/api/records/{rid}')
@@ -314,7 +317,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     def source_chunks(sid: str, actor=Depends(identity)):
         source_payload(sid)  # 404 for unknown ids before anything is cached
         # raw_text duplicates whole pages and is not shown in the UI.
-        return store.cached(('chunks', sid), lambda: [{k: v for k, v in c.items() if k != 'raw_text'} for c in store.source_chunks(sid)], 300)
+        return store.cached(('chunks', sid), lambda: store.chunk_list(sid), 300)
 
     @app.post('/api/sources/{sid}/model-extract')
     def model_extract(sid: str, actor=Depends(admin), _=Depends(heavy)):
@@ -425,13 +428,15 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     def documents(kind: str, actor=Depends(identity)):
         if kind not in DOCUMENT_KINDS: raise HTTPException(404)
         heavy_fields = HEAVY_DOCUMENT_FIELDS.get(kind, ())
-        out = []
-        for d in store.list_documents(kind):
-            payload = {k: v for k, v in d['payload'].items() if k not in heavy_fields}
-            for k in heavy_fields:
-                if k in d['payload']: payload[k + '_count'] = len(d['payload'][k])
-            out.append({'id': d['id'], 'payload': payload})
-        return out
+        def slim():
+            out = []
+            for d in store.list_documents(kind):
+                payload = {k: v for k, v in d['payload'].items() if k not in heavy_fields}
+                for k in heavy_fields:
+                    if k in d['payload']: payload[k + '_count'] = len(d['payload'][k])
+                out.append({'id': d['id'], 'payload': payload})
+            return out
+        return store.cached(('documents', kind), slim)
 
     @app.get('/api/documents/{kind}/{doc_id}')
     def document(kind: str, doc_id: str, actor=Depends(identity)):
