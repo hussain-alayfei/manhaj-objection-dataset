@@ -77,6 +77,11 @@ class PasswordRequest(BaseModel):
     new_password: str = Field(max_length=400)
 
 
+class AvatarRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    image: str = Field(max_length=220_000)
+
+
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     email: str = Field(max_length=320)
@@ -326,9 +331,19 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         info = {'name': request.state.name, 'role': request.state.role, 'editable': False, 'email': None, 'created_at': None}
         if str(actor).startswith('u-'):
             acc = store.account(actor)
-            info.update(email=acc['email'], created_at=acc['created_at'], editable=True, name=acc['name'])
+            info.update(email=acc['email'], created_at=acc['created_at'], editable=True, name=acc['name'], avatar=acc.get('avatar') or None)
         info['activity'] = store.activity(actor) if request.state.role != 'visitor' else None
         return info
+
+    @app.post('/api/account/avatar')
+    def set_avatar(body: AvatarRequest, actor=Depends(own_account)):
+        store.update_account(actor, avatar=auth.clean_avatar(body.image))
+        return {'avatar': body.image}
+
+    @app.delete('/api/account/avatar', status_code=204)
+    def remove_avatar(actor=Depends(own_account)):
+        store.update_account(actor, avatar='')
+        return Response(status_code=204)
 
     @app.patch('/api/account')
     def update_profile(body: ProfileRequest, actor=Depends(own_account)):
@@ -354,14 +369,19 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.get('/api/me')
     def me(request: Request, actor=Depends(identity)):
-        return {'reviewer_id': actor, 'name': request.state.name, 'role': request.state.role, 'taxonomy': SUBPATTERNS, 'capabilities': {'heavy_jobs': heavy_allowed, 'read_only': read_only, 'hosted': hosted, 'storage': storage.backend, 'semantic': bool(os.getenv('EMBEDDING_MODEL')), 'llm': llm_provider(), 'draft_mode': True, 'public_access': public_access, 'diagnose_daily_limit': daily_limit or None}}
+        avatar = None
+        if str(actor).startswith('u-'):
+            try: avatar = store.account(actor).get('avatar') or None
+            except KeyError: avatar = None
+        return {'reviewer_id': actor, 'name': request.state.name, 'role': request.state.role, 'avatar': avatar, 'taxonomy': SUBPATTERNS, 'capabilities': {'heavy_jobs': heavy_allowed, 'read_only': read_only, 'hosted': hosted, 'storage': storage.backend, 'semantic': bool(os.getenv('EMBEDDING_MODEL')), 'llm': llm_provider(), 'draft_mode': True, 'public_access': public_access, 'diagnose_daily_limit': daily_limit or None}}
 
     @app.get('/api/summary')
     def summary(actor=Depends(identity)):
         counts = store.cached('counts', store.counts)
         rows = [dict(r, kind=k) for k in ('objection', 'rule', 'family') for r in counts[k]]
         total = lambda pred: sum(r['n'] for r in rows if pred(r))
-        return {'sources': counts['sources'], 'objections': total(lambda r: r['kind'] == 'objection'), 'rules': total(lambda r: r['kind'] == 'rule'), 'families': total(lambda r: r['kind'] == 'family'), 'approved': total(lambda r: r['status'] == 'approved'), 'pending': total(lambda r: r['status'] in ('draft', 'needs_review')), 'external': total(lambda r: r['phase'] == 2), 'semantic_enabled': bool(os.getenv('EMBEDDING_MODEL'))}
+        return {'sources': counts['sources'], 'objections': total(lambda r: r['kind'] == 'objection'), 'rules': total(lambda r: r['kind'] == 'rule'),
+                'rules_approved': total(lambda r: r['kind'] == 'rule' and r['status'] == 'approved'), 'families': total(lambda r: r['kind'] == 'family'), 'approved': total(lambda r: r['status'] == 'approved'), 'pending': total(lambda r: r['status'] in ('draft', 'needs_review')), 'external': total(lambda r: r['phase'] == 2), 'semantic_enabled': bool(os.getenv('EMBEDDING_MODEL'))}
 
     @app.get('/api/records')
     def records(kind: str | None = None, status: str | None = None, phase: int | None = None, q: str = '', offset: int = 0, limit: int = 50, actor=Depends(identity)):

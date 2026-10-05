@@ -65,3 +65,27 @@ def test_operator_profile_is_read_only(store):
     info = c.get('/api/account', headers=bearer(TOKEN)).json()
     assert info['editable'] is False and info['role'] == 'admin'
     assert c.patch('/api/account', headers=bearer(TOKEN), json={'name': 'تغيير'}).status_code == 409
+
+
+def test_profile_picture_is_validated_and_shown(store):
+    import base64
+    c = TestClient(create_app(store, TOKENS))
+    a = c.post('/api/auth/signup', json=A).json()['token']
+    png = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\n' + b'0' * 64).decode()
+    assert c.post('/api/account/avatar', headers=bearer(a), json={'image': png}).status_code == 200
+    assert c.get('/api/me', headers=bearer(a)).json()['avatar'] == png
+    assert c.get('/api/account', headers=bearer(a)).json()['avatar'] == png
+    fake = 'data:image/png;base64,' + base64.b64encode(b'<svg onload=alert(1)>').decode()
+    assert c.post('/api/account/avatar', headers=bearer(a), json={'image': fake}).status_code == 422
+    assert c.post('/api/account/avatar', headers=bearer(a), json={'image': 'data:image/svg+xml;base64,AAAA'}).status_code == 422
+    assert c.delete('/api/account/avatar', headers=bearer(a)).status_code == 204
+    assert c.get('/api/me', headers=bearer(a)).json()['avatar'] is None
+    assert c.get('/api/account', headers=bearer(a)).json()['name'] == A['name']  # removing the picture keeps the name
+
+
+def test_book_text_is_given_to_the_analyst_as_printed():
+    from src.parsing import printed
+    assert printed('قال تعالى}وما قدروا الله حق قدره{ فأصل') == 'قال تعالى﴿وما قدروا الله حق قدره﴾ فأصل'
+    assert printed('مختلفين ، فهم') == 'مختلفين، فهم'
+    from src.classification.pipeline import SYSTEM
+    assert 'لا تُفتي' in SYSTEM and 'methodology_rule_ids' in SYSTEM

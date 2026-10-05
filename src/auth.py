@@ -75,6 +75,19 @@ def clean_name(value: str) -> str:
     return name
 
 
+def clean_avatar(data_url: str) -> str:
+    """A small square picture sent by the page as a data URL (the page resizes it to 256 px first)."""
+    import base64 as _b64
+    m = re.fullmatch(r'data:image/(webp|jpeg|png);base64,([A-Za-z0-9+/=]+)', data_url or '')
+    if not m: raise ValueError('الصورة يجب أن تكون بصيغة WebP أو JPEG أو PNG.')
+    try: raw = _b64.b64decode(m.group(2), validate=True)
+    except ValueError: raise ValueError('ملف الصورة غير صالح.') from None
+    if len(raw) > 160_000: raise ValueError('الصورة أكبر من المسموح. اختر صورة أصغر.')
+    signatures = {'webp': lambda b: b[:4] == b'RIFF' and b[8:12] == b'WEBP', 'jpeg': lambda b: b[:3] == b'\xff\xd8\xff', 'png': lambda b: b[:8] == b'\x89PNG\r\n\x1a\n'}
+    if not signatures[m.group(1)](raw): raise ValueError('ملف الصورة غير صالح.')
+    return data_url
+
+
 def check_new_password(password: str, email: str) -> str:
     """Medium rules: 8+ characters with at least one letter and one digit, not a well-known password, not the email."""
     password = password or ''

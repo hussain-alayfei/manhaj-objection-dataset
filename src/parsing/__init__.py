@@ -13,5 +13,19 @@ def normalize_arabic(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip()
 
 
+def printed(text: str) -> str:
+    """Book text as printed: the PDF extraction mirrored brackets (verses in {} appear as }...{) and left
+    spaces before commas. Used for display-quality text sent to the analyst; stored evidence is untouched."""
+    t = text or ''
+    for o, c in (('{', '}'), ('(', ')'), ('[', ']')):
+        i, j = t.find(o), t.find(c)
+        if j != -1 and (i == -1 or j < i): t = t.translate(str.maketrans({o: c, c: o}))
+    t = re.sub(r'\{\s*', '﴿', t); t = re.sub(r'\s*\}', '﴾', t)
+    t = re.sub(r'"\s*([^"\n]{1,400}?)\s*"', r'«\1»', t)
+    t = re.sub(r'([(\[«﴿])\s+', r'\1', t); t = re.sub(r'\s+([)\]»﴾])', r'\1', t)
+    t = re.sub(r'[ \t]+([،؛:.!؟,])', r'\1', t)
+    return t
+
+
 def tokens(text):
     return re.findall(r'[\w]+', normalize_arabic(text).lower())
