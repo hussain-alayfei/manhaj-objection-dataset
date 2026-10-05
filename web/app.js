@@ -11,7 +11,10 @@ const subNames={'أصل ≠ وصف':'الخلط بين الأصل والوصف',
 const subName=p=>subNames[p]||p;
 const similarityNames={exact_duplicate:'مكررة حرفيًا',paraphrase:'الشبهة نفسها بصياغة أخرى',same_underlying_objection:'أصلها شبهة واحدة',same_pattern_different_objection:'النمط نفسه مع شبهة مختلفة',new_case:'حالة جديدة'};
 const historyActions={create:'إنشاء',edit:'تعديل',approve:'اعتماد',reject:'رفض',reopen:'إعادة فتح',machine_proposal:'اقتراح آلي'};
-let token=sessionStorage.getItem('manhaj-token')||'', ready=false, view='overview', offset=0, currentRecord=null, taxonomy={}, query='', status=null, caps={};
+// The session token is remembered on this device until the reviewer signs out.
+const remember={get(){try{return localStorage.getItem('manhaj-session')||'';}catch{return '';}},set(v){try{v?localStorage.setItem('manhaj-session',v):localStorage.removeItem('manhaj-session');}catch{}}};
+try{sessionStorage.removeItem('manhaj-token');}catch{}
+let token=remember.get(), ready=false, view='overview', offset=0, currentRecord=null, taxonomy={}, query='', status=null, caps={};
 const badge=s=>`<span class="pill ${s==='approved'?'':s==='rejected'?'rejected':'pending'}">${esc(statuses[s]||s)}</span>`;
 let noticeTimer;
 function notify(message){
@@ -35,17 +38,62 @@ async function request(path, options={}){
  const headers={...(token?{Authorization:`Bearer ${token}`}:{}),...options.headers};
  if(options.body && !(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
  const response=await fetch('/api'+path,{...options,headers});
- if(!response.ok){let error;try{error=await response.json();}catch{error={detail:'تعذر إكمال الطلب'};}const failure=Error(typeof error.detail==='string'?error.detail:JSON.stringify(error.detail));failure.status=response.status;throw failure;}
+ if(!response.ok){let error;try{error=await response.json();}catch{error={detail:'تعذر إكمال الطلب'};}const failure=Error(typeof error.detail==='string'?error.detail:Array.isArray(error.detail)?'تحقق من البيانات المدخلة.':'تعذر إكمال الطلب');failure.status=response.status;if(response.status===401&&ready&&!path.startsWith('/auth/'))signedOut('انتهت الجلسة. سجّل الدخول من جديد.');throw failure;}
  return options.blob?response.blob():response.json();
 }
 function title(name,subtitle,action=''){return `<div class="page-title"><div><h2>${esc(name)}</h2><p>${esc(subtitle)}</p></div>${action}</div>`;}
+// Two faces: the public introduction for guests, the reviewing desk once signed in.
+function setMode(mode){document.body.dataset.mode=mode;if(mode==='landing'){document.title='مَنْهَج | مراجعة الشبهات';reveal();}}
 async function init(){
  if(titles[location.hash.slice(1)])view=location.hash.slice(1);
- try{const me=await api('/me');ready=true;$('#logout').hidden=!!(caps=me.capabilities||{}).public_access;taxonomy=me.taxonomy;caps=me.capabilities||{};$('#identity').textContent=(me.reviewer_id==='visitor'?'زائر':me.reviewer_id)+(caps.read_only?' (قراءة فقط)':'');$('#login').hidden=true;$('#content').hidden=false;await render();prefetch();}
- catch(e){ready=false;if(e.status===401){const had=token;sessionStorage.removeItem('manhaj-token');token='';$('#login').hidden=false;$('#content').hidden=true;if(had)notify('رمز الوصول غير صحيح.');return;}$('#login').hidden=false;$('#content').hidden=true;notify(e.status===401?'رمز الوصول غير صحيح.':'تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.');}
+ if(!token){setMode('landing');return;}
+ setMode('app');
+ try{const me=await api('/me');ready=true;taxonomy=me.taxonomy;caps=me.capabilities||{};me.role==='visitor'&&($('#logout').hidden=true);$('#identity').textContent=(me.name||me.reviewer_id)+(caps.read_only?' (قراءة فقط)':'');await render();prefetch();}
+ catch(e){ready=false;if(e.status===401){signedOut(token?'انتهت الجلسة. سجّل الدخول من جديد.':'');return;}notify('تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.');}
 }
-$('#login-form').addEventListener('submit',e=>{e.preventDefault();token=$('#token').value.trim();sessionStorage.setItem('manhaj-token',token);$('#token').value='';init();});
-$('#logout').addEventListener('click',()=>{sessionStorage.removeItem('manhaj-token');location.reload();});
+function signedOut(message){token='';remember.set('');ready=false;cache.clear();$('#content').innerHTML='';delete $('#content').dataset.view;document.querySelectorAll('dialog[open]').forEach(d=>d.close());setMode('landing');if(message)notify(message);}
+$('#logout').addEventListener('click',async()=>{const was=token;signedOut('');if(was)fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+was}}).catch(()=>{});history.replaceState(null,'',location.pathname);});
+
+// ---------- Sign up / sign in ----------
+let authMode='signup';
+function openAuth(mode){
+ authMode=mode;const signup=mode==='signup';
+ $('#auth-title').textContent=signup?'إنشاء حساب':'تسجيل الدخول';
+ $('#auth-sub').textContent=signup?'اسمك وبريدك وكلمة مرور، ولا شيء غير ذلك.':'أهلًا بعودتك.';
+ $('#name-field').hidden=!signup;$('#auth-name').required=signup;$('#pw-hint').hidden=!signup;
+ $('#auth-password').autocomplete=signup?'new-password':'current-password';
+ $('#auth-submit').textContent=signup?'إنشاء الحساب':'دخول';
+ $('#switch-text').textContent=signup?'لديك حساب؟':'ليس لديك حساب؟';$('#auth-switch').textContent=signup?'سجّل الدخول':'أنشئ حسابًا';
+ $('#auth-error').hidden=true;
+ if(!$('#auth').open)$('#auth').showModal();
+ (signup?$('#auth-name'):$('#auth-email')).focus();
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-auth]');if(b)openAuth(b.dataset.auth);});
+$('#auth-switch').addEventListener('click',()=>openAuth(authMode==='signup'?'login':'signup'));
+$('#auth-form').addEventListener('submit',async e=>{
+ e.preventDefault();const error=$('#auth-error'),submit=$('#auth-submit');error.hidden=true;
+ const body={email:$('#auth-email').value.trim(),password:$('#auth-password').value};
+ if(authMode==='signup')body.name=$('#auth-name').value.trim();
+ const problem=authMode==='signup'&&body.name.length<2?'اكتب اسمك.':!/^\S+@\S+\.\S+$/.test(body.email)?'اكتب بريدًا إلكترونيًا صحيحًا.':body.password.length<(authMode==='signup'?8:1)?(authMode==='signup'?'كلمة المرور من 8 أحرف على الأقل.':'اكتب كلمة المرور.'):'';
+ if(problem){error.textContent=problem;error.hidden=false;return;}
+ submit.disabled=true;
+ try{
+  const r=await request('/auth/'+authMode,{method:'POST',body});
+  token=r.token;remember.set(token);$('#auth-password').value='';closeDialog($('#auth'));
+  if(!titles[location.hash.slice(1)])view='overview';
+  await init();notify(authMode==='signup'?`أهلًا ${r.name}، أُنشئ حسابك.`:`أهلًا ${r.name}.`);
+ }catch(err){error.textContent=err.message;error.hidden=false;}
+ finally{submit.disabled=false;}
+});
+// Landing sections fade in as they scroll into view.
+let revealed=false;
+function reveal(){
+ if(revealed)return;revealed=true;
+ const items=document.querySelectorAll('.reveal');
+ if(!('IntersectionObserver' in window)){items.forEach(x=>x.classList.add('shown'));return;}
+ const seen=new IntersectionObserver(entries=>entries.forEach(x=>{if(x.isIntersecting){x.target.classList.add('shown');seen.unobserve(x.target);}}),{rootMargin:'0px 0px -12% 0px'});
+ items.forEach(x=>seen.observe(x));
+}
 
 // Each tab has its own address (#rules, #review…) so refresh, Back/Forward and shared links keep the place.
 function go(next){if(!titles[next])next='overview';offset=0;query='';status=null;if(location.hash.slice(1)!==next){location.hash=next;return;}view=next;render().catch(e=>notify(e.message));}
@@ -280,10 +328,11 @@ document.addEventListener('click',async e=>{
  if(b.dataset.book)await openBook(b.dataset.book,Number(b.dataset.bookpage)||1,b.dataset.booktitle);
  if(b.dataset.turn)await showPages(book.page+(b.dataset.turn==='next'?spread():-spread()),b.dataset.turn==='next'?1:-1);
  if(b.dataset.chunks){const chunks=await api('/sources/'+b.dataset.chunks+'/chunks');$('#editor-content').innerHTML='<header class="modal-head"><div class="modal-title"><h3 id="editor-title">نص الكتاب مقسّمًا</h3></div><button data-action="close">إغلاق</button></header><div class="chunks">'+chunks.map(c=>`<details><summary>صفحة ${num(c.page_number)}: ${esc(c.section)}</summary><pre class="excerpt">${esc(c.text)}</pre></details>`).join('')+'</div>';$('#editor').showModal();}
- if(b.dataset.history&&!b.closest('details').open){const history=await api('/records/'+b.dataset.history+'/history');$('#history').innerHTML=history.map(x=>`<li><b>الإصدار ${num(x.snapshot.version)}</b> ${esc(historyActions[x.action]||x.action)}، ${esc(x.actor.replace(/^machine:.*/,'النظام'))}، ${esc(new Date(x.at).toLocaleString('ar-u-nu-latn'))}</li>`).join('');}
+ if(b.dataset.history&&!b.closest('details').open){const history=await api('/records/'+b.dataset.history+'/history');$('#history').innerHTML=history.map(x=>`<li><b>الإصدار ${num(x.snapshot.version)}</b> ${esc(historyActions[x.action]||x.action)}، ${esc(/^machine:/.test(x.actor)?'النظام':x.actor_name||x.actor)}، ${esc(new Date(x.at).toLocaleString('ar-u-nu-latn'))}</li>`).join('');}
  const action=b.dataset.action;
  if(action==='close')closeDialog($('#editor'));
  if(action==='close-book')closeDialog($('#book'));
+ if(action==='close-auth')closeDialog($('#auth'));
  if(action==='duplicates'){b.disabled=true;await api('/duplicates',{method:'POST'});notify('اكتمل البحث عن المكرر، والاقتراحات تنتظر المراجعة.');}
  if(action==='families'){b.disabled=true;const r=await api('/families',{method:'POST'});notify('مجموعات مقترحة جديدة: '+num(r.created.length));await render();}
  if(action==='refresh-index'){b.disabled=true;await api('/embeddings/refresh',{method:'POST',body:{include_drafts:true}});notify('حُدّث البحث.');}
@@ -291,7 +340,7 @@ document.addEventListener('click',async e=>{
  }catch(err){notify(err.message);}finally{if(b.tagName==='BUTTON')b.disabled=false;}
 });
 document.addEventListener('submit',async e=>{
- if(e.target.id==='login-form')return;
+ if(e.target.id==='auth-form')return;
  e.preventDefault();const button=e.submitter;if(e.target.id==='review-form'&&!button?.value)return;if(button)button.disabled=true;
  try{
  const id=e.target.id;

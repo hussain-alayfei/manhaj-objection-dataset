@@ -11,11 +11,13 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import (JSON, Column, ForeignKey, Integer, MetaData, String, Table,
+from sqlalchemy import (JSON, BigInteger, Column, ForeignKey, Integer, MetaData, String, Table,
                         UniqueConstraint, create_engine, delete, event, func, insert, inspect, or_, select, update)
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool, StaticPool
 
+from .auth import new_token, now_s, token_hash
 from .models import Analysis, Record, ReviewRequest, now
 
 metadata = MetaData()
@@ -33,6 +35,12 @@ documents = {}
 for name in ('diagnoses', 'training_exports', 'evaluation_runs', 'dataset_manifests', 'phase_gates', 'extraction_runs', 'duplicate_runs', 'source_items'):
     documents[name] = Table(name, metadata, Column('id', String, primary_key=True), Column('payload', JSON, nullable=False))
 embeddings = Table('embeddings', metadata, Column('id', String, primary_key=True), Column('record_id', String, nullable=False), Column('record_version', Integer, nullable=False), Column('field', String, nullable=False), Column('model', String, nullable=False), Column('content_hash', String, nullable=False), Column('values', JSON, nullable=False))
+# Reviewer accounts (supabase/migrations/20261006000000_accounts.sql). Tagged so the generated
+# initial migration stays exactly as applied. Times are Unix seconds so SQLite and Postgres compare alike.
+LATER = {'migration': '20261006000000_accounts'}
+accounts = Table('accounts', metadata, Column('id', String, primary_key=True), Column('email', String, unique=True, nullable=False), Column('password_hash', String, nullable=False), Column('payload', JSON, nullable=False), info=LATER)
+sessions = Table('sessions', metadata, Column('token_hash', String, primary_key=True), Column('account_id', ForeignKey('accounts.id', ondelete='CASCADE'), nullable=False), Column('created_at', BigInteger, nullable=False), Column('expires_at', BigInteger, nullable=False), Column('revoked_at', BigInteger), info=LATER)
+events = Table('events', metadata, Column('id', String, primary_key=True), Column('kind', String, nullable=False), Column('key', String, nullable=False), Column('at', BigInteger, nullable=False), info=LATER)
 KINDS = {'objection': 'objections', 'rule': 'methodology_rules', 'family': 'objection_families'}
 
 
@@ -85,6 +93,7 @@ class Store:
                 opts.update(pool_pre_ping=True, pool_size=2, max_overflow=3)
         self.engine = create_engine(url, **opts)
         self._cache, self._cache_lock = {}, threading.Lock()
+        self._sessions, self._session_lock = {}, threading.Lock()
         self.cache_seconds = float(os.getenv('READ_CACHE_SECONDS', '10'))
         if url.startswith('sqlite'):
             @event.listens_for(self.engine, 'connect')
@@ -95,7 +104,7 @@ class Store:
         else:
             # PostgreSQL schema is owned by supabase/migrations; never improvise tables at runtime.
             with self.engine.connect() as c:
-                if not inspect(c).has_table('semantic_vectors'):
+                if not all(inspect(c).has_table(t) for t in ('semantic_vectors', 'accounts')):
                     raise RuntimeError('Database schema missing: apply supabase/migrations before starting the app')
 
     def cached(self, key, compute, seconds=None):
@@ -382,6 +391,71 @@ class Store:
                 q = select(func.count()).select_from(t).where(t.c.payload[field].as_string() == value, t.c.payload['created_at'].as_string() >= since)
                 return c.execute(q).scalar_one()
             return sum(1 for p in c.execute(select(t.c.payload)).scalars() if p.get(field) == value and p.get('created_at', '') >= since)
+
+    # ---------- Accounts and sessions (no global write lock: they never touch review data) ----------
+    def create_account(self, name, email, password_hash):
+        account_id = 'u-' + uuid.uuid4().hex[:12]
+        try:
+            with self.engine.begin() as c:
+                c.execute(insert(accounts).values(id=account_id, email=email, password_hash=password_hash, payload={'name': name, 'created_at': now()}))
+                c.execute(insert(reviewers).values(id=account_id, payload={'created_at': now(), 'identity_source': 'account', 'name': name}))
+        except IntegrityError as error:
+            raise Conflict('هذا البريد مسجّل من قبل. سجّل الدخول بدلًا من ذلك.') from error
+        with self._cache_lock: self._cache.pop('reviewer_names', None)
+        return account_id
+
+    def account_by_email(self, email):
+        with self.engine.connect() as c:
+            row = c.execute(select(accounts.c.id, accounts.c.password_hash, accounts.c.payload).where(accounts.c.email == email)).first()
+        return None if row is None else {'id': row.id, 'password_hash': row.password_hash, 'name': row.payload.get('name', '')}
+
+    def create_session(self, account_id, days):
+        token, at = new_token(), now_s()
+        with self.engine.begin() as c:
+            c.execute(insert(sessions).values(token_hash=token_hash(token), account_id=account_id, created_at=at, expires_at=at + days * 86400))
+            c.execute(delete(sessions).where(sessions.c.account_id == account_id, sessions.c.expires_at < at))
+        return token
+
+    def session_account(self, token):
+        """The account behind a session token, remembered for a minute per server instance."""
+        key, clock = token_hash(token), time.monotonic()
+        with self._session_lock:
+            hit = self._sessions.get(key)
+        if hit and hit[0] > clock: return hit[1]
+        with self.engine.connect() as c:
+            row = c.execute(select(accounts.c.id, accounts.c.email, accounts.c.payload).join(sessions, sessions.c.account_id == accounts.c.id)
+                            .where(sessions.c.token_hash == key, sessions.c.revoked_at.is_(None), sessions.c.expires_at > now_s())).first()
+        value = None if row is None else {'id': row.id, 'email': row.email, 'name': row.payload.get('name') or row.id}
+        with self._session_lock:
+            if len(self._sessions) > 1024: self._sessions.clear()
+            self._sessions[key] = (clock + (60 if value else 5), value)
+        return value
+
+    def revoke_session(self, token):
+        key = token_hash(token)
+        with self.engine.begin() as c:
+            c.execute(update(sessions).where(sessions.c.token_hash == key, sessions.c.revoked_at.is_(None)).values(revoked_at=now_s()))
+        with self._session_lock: self._sessions.pop(key, None)
+
+    def add_event(self, kind, key, conn=None):
+        if conn is None:
+            with self.engine.begin() as c: return self.add_event(kind, key, c)
+        at = now_s()
+        conn.execute(insert(events).values(id=uuid.uuid4().hex, kind=kind, key=key, at=at))
+        conn.execute(delete(events).where(events.c.kind == kind, events.c.key == key, events.c.at < at - 3 * 86400))
+
+    def count_events(self, kind, key, since, conn=None):
+        if conn is None:
+            with self.engine.connect() as c: return self.count_events(kind, key, since, c)
+        q = select(func.count()).select_from(events).where(events.c.kind == kind, events.c.at >= since)
+        if key is not None: q = q.where(events.c.key == key)
+        return conn.execute(q).scalar_one()
+
+    def reviewer_names(self):
+        def load():
+            with self.engine.connect() as c:
+                return {rid: (payload or {}).get('name') or rid for rid, payload in c.execute(select(reviewers.c.id, reviewers.c.payload))}
+        return self.cached('reviewer_names', load, 120)
 
     def history(self, rid):
         with self.engine.connect() as c:
