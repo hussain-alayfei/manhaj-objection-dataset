@@ -283,12 +283,14 @@ body[data-mode=app] #app{animation:fade-in .3s ease-out both}
 .land-brand.small span{font-size:22px}
 .land-actions{display:flex;align-items:center;gap:16px}
 .land-actions .quiet{font-size:15px}
-.land-hero{position:relative;isolation:isolate;min-height:min(78svh,720px);display:flex;align-items:center;padding:48px 0 80px}
+.land-hero{position:relative;isolation:isolate;min-height:min(86svh,800px);display:flex;align-items:center;margin-top:-88px;padding:136px 0 80px}
 /* the study photograph, blurred and veiled in the page colour, fading out at the bottom: depth without edges */
 .land-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to left,#f6f5f0f2 0%,#f6f5f0cc 30%,#f6f5f066 52%,transparent 68%),linear-gradient(to bottom,transparent 70%,var(--bg) 100%),image-set(url(/static/img/hero-light.webp) 1x) left center/cover no-repeat}
 /* the header sits above the hero's backdrop */
 /* the header stays at the top while you scroll */
-.land-bar{position:sticky;top:0;z-index:20;background:#f6f5f0e8;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+/* the header lies on the photograph, then turns solid once the page scrolls */
+.land-bar{position:sticky;top:0;z-index:20;background:transparent;transition:background-color .3s ease,box-shadow .3s ease}
+.land-bar.solid{background:#f6f5f0eb;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 1px 12px #1c302c14}
 .hero-grid{display:flex;justify-content:flex-start;width:100%}
 .land-copy{max-width:600px}
 .principle{margin:0}
@@ -380,8 +382,8 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
   .landing{padding:0 16px}
   .land-wrap{padding:0 16px}
   .land-bar .land-wrap{height:72px}
-  .land-hero{min-height:0;align-items:flex-end;padding:300px 0 36px}
-  .land-hero::before{background:linear-gradient(to bottom,transparent 0%,transparent 34%,#f6f5f0e6 52%,var(--bg) 70%),url(/static/img/hero-light-960.webp) 18% top/auto 340px no-repeat}
+  .land-hero{min-height:0;align-items:flex-end;margin-top:-72px;padding:372px 0 36px}
+  .land-hero::before{background:linear-gradient(to bottom,transparent 0%,transparent 34%,#f6f5f0e6 52%,var(--bg) 70%),url(/static/img/hero-light-960.webp) 18% top/auto 412px no-repeat}
   .principle p span{white-space:normal}
   .land-brand span{font-size:26px}
   .land-actions{gap:8px}
