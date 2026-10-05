@@ -35,9 +35,9 @@ documents = {}
 for name in ('diagnoses', 'training_exports', 'evaluation_runs', 'dataset_manifests', 'phase_gates', 'extraction_runs', 'duplicate_runs', 'source_items'):
     documents[name] = Table(name, metadata, Column('id', String, primary_key=True), Column('payload', JSON, nullable=False))
 embeddings = Table('embeddings', metadata, Column('id', String, primary_key=True), Column('record_id', String, nullable=False), Column('record_version', Integer, nullable=False), Column('field', String, nullable=False), Column('model', String, nullable=False), Column('content_hash', String, nullable=False), Column('values', JSON, nullable=False))
-# Reviewer accounts (supabase/migrations/20261006000000_accounts.sql). Tagged so the generated
+# Reviewer accounts (supabase/migrations/20261005064602_accounts.sql). Tagged so the generated
 # initial migration stays exactly as applied. Times are Unix seconds so SQLite and Postgres compare alike.
-LATER = {'migration': '20261006000000_accounts'}
+LATER = {'migration': '20261005064602_accounts'}
 accounts = Table('accounts', metadata, Column('id', String, primary_key=True), Column('email', String, unique=True, nullable=False), Column('password_hash', String, nullable=False), Column('payload', JSON, nullable=False), info=LATER)
 sessions = Table('sessions', metadata, Column('token_hash', String, primary_key=True), Column('account_id', ForeignKey('accounts.id', ondelete='CASCADE'), nullable=False), Column('created_at', BigInteger, nullable=False), Column('expires_at', BigInteger, nullable=False), Column('revoked_at', BigInteger), info=LATER)
 events = Table('events', metadata, Column('id', String, primary_key=True), Column('kind', String, nullable=False), Column('key', String, nullable=False), Column('at', BigInteger, nullable=False), info=LATER)

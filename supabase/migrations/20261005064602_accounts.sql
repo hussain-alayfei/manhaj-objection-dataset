@@ -1,4 +1,4 @@
--- 20261006000000: reviewer accounts (name, email, password) with server-side sessions,
+-- 20261005064602: reviewer accounts (name, email, password) with server-side sessions,
 -- plus a small events table used for sign-in throttling and usage limits.
 -- Times are Unix seconds. Passwords are scrypt hashes; only SHA-256 digests of session tokens are stored.
 
