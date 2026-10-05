@@ -8,7 +8,7 @@ from conftest import record
 
 TOKEN = 'operator-token-for-tests'
 TOKENS = {'operator': hashlib.sha256(TOKEN.encode()).hexdigest()}
-PERSON = {'name': 'أحمد المراجع', 'email': 'Ahmad@Example.com', 'password': 'a-long-passphrase'}
+PERSON = {'name': 'أحمد المراجع', 'email': 'Ahmad@Example.com', 'password': 'long-passphrase-7'}
 
 
 def client(store, **options):
@@ -90,3 +90,23 @@ def test_read_only_preview_still_allows_sign_in(store):
     ro = client(store, read_only=True)
     assert ro.post('/api/auth/signup', json=dict(PERSON, email='new@example.com')).status_code == 403
     assert ro.post('/api/auth/login', json={'email': 'ahmad@example.com', 'password': PERSON['password']}).status_code == 200
+
+
+def test_account_rules_are_medium_and_emails_are_checked(store):
+    c = client(store)
+    for bad in ('ahmad@gmail', 'ahmad@@gmail.com', '.ahmad@gmail.com', 'ahmad..x@gmail.com', 'ahmad@gmail..com', 'ahmad@-gmail.com', 'ahmad gmail.com', 'ahmad@gmail.c0m'):
+        assert c.post('/api/auth/signup', json=dict(PERSON, email=bad)).status_code == 422, bad
+    typo = c.post('/api/auth/signup', json=dict(PERSON, email='ahmad@gmial.com'))
+    assert typo.status_code == 422 and 'gmail.com' in typo.json()['detail']
+    for weak in ('onlyletters', '12345678', 'password1', 'aaaa1111'[:4] + 'aaaa', ' spaced-pass1'):
+        assert c.post('/api/auth/signup', json=dict(PERSON, password=weak)).status_code == 422, weak
+    assert c.post('/api/auth/signup', json=dict(PERSON, email='first.last+tag@sub.example.org', password='Reviewer2026')).status_code == 201
+
+
+def test_errors_reach_reviewers_in_arabic(store):
+    store.add(record())
+    c = client(store)
+    token = c.post('/api/auth/signup', json=PERSON).json()['token']
+    r = c.post('/api/records/SHB-test/review', headers=bearer(token), json={'expected_version': 1, 'action': 'approve', 'changes': {}})
+    assert r.status_code == 422 and 'راجعت الدعوى والتشخيص' in r.json()['detail']
+    assert c.get('/api/records/SHB-missing', headers=bearer(token)).json()['detail'] == 'السجل غير موجود.'
