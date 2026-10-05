@@ -241,7 +241,7 @@ body[data-mode=app] #app{animation:fade-in .3s ease-out both}
 
 
 /* Landing: light and quiet. The page colour runs edge to edge; no frames, no rules between sections. */
-.land-wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+.land-wrap,.landing{max-width:1180px;margin:0 auto;padding:0 32px}
 .land-bar .land-wrap{height:88px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .land-brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--green)}
 /* Aref Ruqaa draws about half an em above its declared ascent; the top padding keeps the word inside the bar */
