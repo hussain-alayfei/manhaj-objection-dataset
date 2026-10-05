@@ -2,19 +2,67 @@
 <html lang="ar" dir="rtl">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مَنْهَج | مراجعة الشبهات</title><meta name="description" content="مساحة عمل لمراجعة الشبهات وفق منهج كتاب وليد السعيدان: الشريعة لا تفرّق بين المتماثلات ولا تجمع بين المختلفات."><link rel="icon" type="image/png" sizes="32x32" href="/static/img/emblem-32.png"><link rel="apple-touch-icon" href="/static/img/emblem-180.png"><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
 <body>
-<div id="landing" class="landing">
- <header class="land-bar">
-  <a class="land-brand" href="/"><img src="/static/img/emblem.webp" alt="" width="40" height="40"><span>مَنْهَج</span></a>
-  <div class="land-actions"><button class="quiet" data-auth="login">تسجيل الدخول</button><button class="primary" data-auth="signup">إنشاء حساب</button></div>
- </header>
- <section class="land-hero">
-  <div class="land-copy">
-   <blockquote class="principle"><p>الشريعة لا تفرّق بين المتماثلات، ولا تجمع بين المختلفات.</p></blockquote>
-   <p class="land-lead">على هذا الأصل يقوم كتاب وليد السعيدان في الرد على الشبهات. ومَنْهَج مساحة عمل يراجع فيها المختصون كل شبهة وردت في الكتاب: ما الذي تدّعيه، وهل جمعت بين مختلفين أو فرّقت بين متماثلين، وأي قاعدة من الكتاب تجيب عنها.</p>
-   <div class="land-cta"><button class="primary big" data-auth="signup">ابدأ المراجعة</button><button class="big" data-auth="login">لدي حساب</button></div>
+<div id="landing">
+ <header class="land-bar" id="land-bar">
+  <div class="land-wrap">
+   <a class="land-brand" href="/" aria-label="مَنْهَج، أعلى الصفحة"><img src="/static/img/emblem.webp" alt="" width="40" height="40"><span>مَنْهَج</span></a>
+   <div class="land-actions"><button class="quiet" data-auth="login">تسجيل الدخول</button><button class="primary" data-auth="signup">إنشاء حساب</button></div>
   </div>
-  <figure class="land-figure"><img src="/static/img/landing-mizan.webp" alt="ميزان نحاسي على مكتب خشبي بجانب كتب قديمة" width="1280" height="960" fetchpriority="high"></figure>
+ </header>
+ <section class="land-hero" aria-labelledby="hero-title">
+  <div class="hero-frame" aria-hidden="true">
+   <div class="hero-stage">
+    <img class="hero-bg" src="/static/img/hero-study.webp" srcset="/static/img/hero-study-1024.webp 1024w, /static/img/hero-study.webp 2048w" sizes="(max-width: 760px) 200vw, 100vw" alt="" width="2048" height="1152" fetchpriority="high">
+    <svg class="mizan" viewBox="0 0 400 430" role="presentation">
+     <defs>
+      <linearGradient id="brass" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#5a3f17"/><stop offset=".35" stop-color="#b8904a"/><stop offset=".55" stop-color="#f1d793"/><stop offset=".75" stop-color="#a57c36"/><stop offset="1" stop-color="#4e3713"/></linearGradient>
+      <linearGradient id="brass-v" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f3dc9c"/><stop offset=".45" stop-color="#b48a43"/><stop offset="1" stop-color="#5b4018"/></linearGradient>
+      <radialGradient id="pan-in" cx=".5" cy=".2" r=".8"><stop offset="0" stop-color="#f6e2aa"/><stop offset=".6" stop-color="#a98140"/><stop offset="1" stop-color="#4f3814"/></radialGradient>
+      <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+     </defs>
+     <ellipse cx="200" cy="420" rx="120" ry="9" fill="#0b1a12" opacity=".55" filter="url(#soft)"/>
+     <!-- base and pillar -->
+     <path d="M128 414 Q200 398 272 414 L262 400 Q200 386 138 400 Z" fill="url(#brass)"/>
+     <path d="M150 400 Q200 372 250 400 Z" fill="url(#brass)"/>
+     <rect x="193" y="104" width="14" height="282" rx="5" fill="url(#brass)"/>
+     <rect x="186" y="232" width="28" height="9" rx="4" fill="url(#brass)"/>
+     <rect x="188" y="352" width="24" height="10" rx="4" fill="url(#brass)"/>
+     <circle cx="200" cy="64" r="9" fill="url(#brass-v)"/>
+     <rect x="196" y="70" width="8" height="34" rx="3" fill="url(#brass)"/>
+     <!-- left pan: hangs from the beam end and follows it -->
+     <g class="pan pan-l"><g class="swing">
+      <path d="M55 104 L18 246 M55 104 L55 244 M55 104 L92 246" stroke="#9a7431" stroke-width="2" fill="none"/>
+      <circle cx="55" cy="104" r="4.5" fill="url(#brass-v)"/>
+      <path d="M8 246 Q55 286 102 246 Z" fill="url(#pan-in)"/>
+      <ellipse cx="55" cy="246" rx="47" ry="6" fill="url(#brass)"/>
+     </g></g>
+     <!-- right pan -->
+     <g class="pan pan-r"><g class="swing">
+      <path d="M345 104 L308 246 M345 104 L345 244 M345 104 L382 246" stroke="#9a7431" stroke-width="2" fill="none"/>
+      <circle cx="345" cy="104" r="4.5" fill="url(#brass-v)"/>
+      <path d="M298 246 Q345 286 392 246 Z" fill="url(#pan-in)"/>
+      <ellipse cx="345" cy="246" rx="47" ry="6" fill="url(#brass)"/>
+     </g></g>
+     <!-- beam, tilting about the pivot -->
+     <g class="beam">
+      <path d="M52 100 Q200 88 348 100 L348 106 Q200 96 52 106 Z" fill="url(#brass-v)"/>
+      <circle cx="200" cy="100" r="11" fill="url(#brass-v)"/>
+      <circle cx="200" cy="100" r="4" fill="#5a3f17"/>
+      <path d="M200 100 L200 122" stroke="url(#brass)" stroke-width="5" stroke-linecap="round"/>
+     </g>
+    </svg>
+   </div>
+  </div>
+  <div class="hero-shade" aria-hidden="true"></div>
+  <div class="land-wrap hero-inner">
+   <div class="land-copy">
+    <blockquote class="principle"><p id="hero-title">الشريعة لا تفرّق بين المتماثلات، ولا تجمع بين المختلفات.</p></blockquote>
+    <p class="land-lead">على هذا الأصل يقوم كتاب وليد السعيدان في الرد على الشبهات. ومَنْهَج مساحة عمل يراجع فيها المختصون كل شبهة وردت في الكتاب: ما الذي تدّعيه، وهل جمعت بين مختلفين أو فرّقت بين متماثلين، وأي قاعدة من الكتاب تجيب عنها.</p>
+    <div class="land-cta"><button class="gold big" data-auth="signup">ابدأ المراجعة</button><button class="ghost big" data-auth="login">لدي حساب</button></div>
+   </div>
+  </div>
  </section>
+ <div class="landing">
  <section class="land-example reveal" aria-labelledby="example-title">
   <div class="section-head"><h2 id="example-title">مثال من الكتاب</h2><p>صفحة 66، الفرع الثالث والأربعون</p></div>
   <div class="example-grid">
@@ -35,11 +83,12 @@
   </ol>
  </section>
  <footer class="land-foot"><span class="land-brand small"><img src="/static/img/emblem.webp" alt="" width="24" height="24"><span>مَنْهَج</span></span><span>مراجعة الشبهات وفق منهج كتاب وليد السعيدان.</span></footer>
+ </div>
 </div>
 
 <div id="app" class="app">
  <aside class="sidebar">
-  <div class="brand"><img src="/static/img/emblem.webp" alt="" width="46" height="46"><h1>مَنْهَج</h1></div>
+  <a class="brand" href="#overview" aria-label="مَنْهَج، النظرة العامة"><img src="/static/img/emblem.webp" alt="" width="46" height="46"><h1>مَنْهَج</h1></a>
   <nav id="nav" aria-label="أقسام الموقع">
    <button data-view="overview" class="active" aria-current="page"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></g></svg></span> نظرة عامة</button>
    <button data-view="sources"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 5v16m8.001-2A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2a5 5 0 0 1 4-2z"/></svg></span> المصادر</button>
