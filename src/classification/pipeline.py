@@ -180,8 +180,8 @@ class OpenAIAnalyst:
                     response = stream.get_final_response()
             else:
                 response = self._client.responses.parse(**request)
-        except OpenAIError as error:
-            raise ValueError(f'provider_error: {type(error).__name__}') from error
+        except OpenAIError as error:  # the provider's message names the failing parameter, never the input
+            raise ValueError(f'provider_error: {type(error).__name__}: {str(error)[:300]}') from error
         except RuntimeError as error:  # the stream ended without a completed response
             raise ValueError('provider_incomplete') from error
         parsed = response.output_parsed
