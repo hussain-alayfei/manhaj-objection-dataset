@@ -96,10 +96,11 @@ def refresh_embeddings(store, encoder=None, include_drafts=False, record_ids=Non
             if r['review_status'] in wanted: records.append(r)
     else:
         records = embedding_candidates(store, include_drafts)
-    query = select(embeddings).where(embeddings.c.model == encoder.model)
-    if record_ids is not None: query = query.where(embeddings.c.record_id.in_([r['id'] for r in records] or ['']))
+    e = embeddings.c
+    query = select(e.id, e.record_id, e.record_version, e.field, e.content_hash).where(e.model == encoder.model)
+    if record_ids is not None: query = query.where(e.record_id.in_([r['id'] for r in records] or ['']))
     with store.engine.connect() as c:
-        existing = {(row['record_id'], row['field']): row for row in c.execute(query).mappings()}
+        existing = {(row['record_id'], row['field']): dict(row) for row in c.execute(query).mappings()}
     todo, reuse = [], []
     for r in records:
         for field in FIELDS:
@@ -109,6 +110,10 @@ def refresh_embeddings(store, encoder=None, include_drafts=False, record_ids=Non
             if row and row['record_version'] == r['version'] and row['content_hash'] == digest(value): continue
             (reuse if row and row['content_hash'] == digest(value) else todo).append((r, field, value, row))
     if limit is not None: todo = todo[:limit]
+    if reuse:  # only rows whose text is unchanged need their stored vector
+        with store.engine.connect() as c:
+            stored = dict(c.execute(select(e.id, e['values']).where(e.id.in_([row['id'] for *_, row in reuse]))).all())
+        for *_, row in reuse: row['values'] = stored[row['id']]
     vectors = encoder.encode([value for _, _, value, _ in todo]) if todo else []
     planned = [(r, f, v, vec) for (r, f, v, _), vec in zip(todo, vectors)] + [(r, f, v, list(row['values'])) for r, f, v, row in reuse]
     if not planned: return 0
