@@ -285,7 +285,7 @@ body[data-mode=app] #app{animation:fade-in .3s ease-out both}
 .land-actions .quiet{font-size:15px}
 .land-hero{position:relative;isolation:isolate;min-height:min(86svh,800px);display:flex;align-items:center;margin-top:-88px;padding:136px 0 80px}
 /* the study photograph, blurred and veiled in the page colour, fading out at the bottom: depth without edges */
-.land-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to left,#f6f5f0f2 0%,#f6f5f0cc 30%,#f6f5f066 52%,transparent 68%),linear-gradient(to bottom,transparent 70%,var(--bg) 100%),image-set(url(/static/img/hero-light.webp) 1x) left center/cover no-repeat}
+.land-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to left,#f6f5f0e6 0%,#f6f5f0b3 28%,#f6f5f033 48%,transparent 60%),linear-gradient(to bottom,transparent 86%,var(--bg) 100%),url(/static/img/hero-light.webp) left center/cover no-repeat}
 /* the header sits above the hero's backdrop */
 /* the header stays at the top while you scroll */
 /* the header lies on the photograph, then turns solid once the page scrolls */
