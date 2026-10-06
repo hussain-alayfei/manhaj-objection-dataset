@@ -950,8 +950,8 @@ function immerse(){
  const frame=()=>{
   queued=false;if(document.body.dataset.mode!=='landing'){document.body.classList.remove('immersed');return;}
   const r=scroll.getBoundingClientRect(),vh=innerHeight,run=r.height-vh,pin=-r.top;
-  // opening: from just before the stage reaches the top to a third of the way through; closing: the last stretch
-  const e=ease(clamp((pin+.3*vh)/(.3*vh+.3*run))),x=ease(clamp((pin-run+.35*vh)/(.35*vh)));
+  // opening: from just before the stage reaches the top to a fifth of the way through; closing: the last stretch
+  const e=ease(clamp((pin+.2*vh)/(.2*vh+.18*run))),x=ease(clamp((pin-run+.25*vh)/(.25*vh)));
   stage.style.setProperty('--e',e.toFixed(4));
   stage.style.setProperty('--c',Math.max(1-e,x).toFixed(4));
   stage.style.setProperty('--s',((.86+.14*e)*(1-.1*x)).toFixed(4));
@@ -984,4 +984,27 @@ function buildDeck(){
  document.addEventListener('visibilitychange',tourWait);
 }
 buildDeck();
+// Smooth scrolling: a turn of the wheel carries the page to where it was sent with a slight glide, not a jump.
+// Boxes that scroll on their own, open dialogs, zooming (ctrl) and touch keep the browser's own scrolling.
+(function smoothWheel(){
+ if(calm()||matchMedia('(pointer:coarse)').matches)return;
+ let pos=scrollY,target=scrollY,running=false,last=0;
+ const own=el=>{for(;el&&el!==document.body;el=el.parentElement){if(el.nodeType!==1)continue;const y=getComputedStyle(el).overflowY;if((y==='auto'||y==='scroll')&&el.scrollHeight>el.clientHeight+1)return true;}return false;};
+ const step=now=>{
+  const dt=last?Math.min(now-last,64):16.7;last=now;
+  pos+=(target-pos)*(1-Math.pow(.89,dt/16.7));
+  if(Math.abs(target-pos)<.5){pos=target;running=false;last=0;}
+  scrollTo(0,pos);if(running)requestAnimationFrame(step);
+ };
+ addEventListener('wheel',e=>{
+  if(e.ctrlKey||Math.abs(e.deltaX)>Math.abs(e.deltaY)||document.querySelector('dialog[open]')||own(e.target))return;
+  e.preventDefault();
+  if(!running){pos=target=scrollY;}
+  const d=e.deltaMode===1?e.deltaY*40:e.deltaMode===2?e.deltaY*innerHeight:e.deltaY;
+  target=Math.max(0,Math.min(document.documentElement.scrollHeight-innerHeight,target+d));
+  if(!running){running=true;requestAnimationFrame(step);}
+ },{passive:false});
+ // keys, the scrollbar and links move the page directly; the glide starts again from there
+ addEventListener('scroll',()=>{if(!running)pos=target=scrollY;},{passive:true});
+})();
 init();
