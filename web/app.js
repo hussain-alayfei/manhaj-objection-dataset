@@ -374,7 +374,6 @@ async function analyzeView(){
     <label><input type="radio" name="rules-source" value="all" ${none?'checked':''}><span>كل قواعد الكتاب (مسودة)</span></label>
    </fieldset>
    ${none?'<small class="hint">لم تُعتمد قواعد بعد، لذلك يستعين التحليل بقواعد الكتاب قبل مراجعتها، وتُعلَّم النتيجة «مسودة».</small>':''}
-   ${caps.llm==='openai'?'<label class="check deep-search"><input type="checkbox" id="deep-search"><span>بحث موسّع في مصادر موثوقة على الإنترنت<small>الشاملة والدرر وسنة دوت كوم وإسلام ويب. أبطأ بنحو 20 ثانية، ويُحسب تحليلين من حدّك اليومي.</small></span></label>':''}
    <div class="analyze-foot"><span></span><div class="form-actions">${caps.semantic&&!caps.read_only&&me_.role==='admin'?'<button type="button" class="quiet" data-action="refresh-index">تحديث البحث</button>':''}<button class="primary big" id="diagnose-submit">حلّل الشبهة</button></div></div>
   </form>
   <p class="ai-note">النتيجة اقتراح آلي يعين على البحث، وليست فتوى ولا حكمًا، ولا تُعتمد قبل أن يراجعها مختص.</p>
@@ -592,8 +591,10 @@ function methodEvent(st,ev){
   st.phase=ev.stage;
   if(ev.stage==='analyze'&&!st.status.step1_framing)st.status.step1_framing='active';
   if(ev.stage==='critic')st.status.review='active';
-  if(ev.stage==='revise'){for(const s of STEPS)if(s.key!=='review')st.status[s.key]='wait';st.steps={};st.checks={};}
+  if(ev.stage==='revise'||ev.stage==='retry'){for(const s of STEPS)if(s.key!=='review')st.status[s.key]='wait';st.steps={};st.checks={};st.searching=false;}
+  if(ev.stage==='retry')st.status.step1_framing='active';
  }
+ if((ev.type==='active'||ev.type==='step')&&st.phase==='retry')st.phase='analyze';
  if(ev.type==='active'&&st.status[ev.key]!=='done')st.status[ev.key]='active';
  if(ev.type==='step'){st.steps[ev.key]=ev.data;st.status[ev.key]=ev.key==='step11_answer'?'draft':'done';if(st.follow)st.current=stepAt(ev.key);}
  if(ev.type==='verified')st.checks[ev.key]=ev.checks;
@@ -619,7 +620,7 @@ function methodHead(st){
  }
  const done=STEPS.filter(x=>['done','draft','fail'].includes(st.status[x.key])).length;
  const active=STEPS.find(x=>st.status[x.key]==='active');
- const where={gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة',library:'يبحث في المكتبة الشاملة: متون الحديث وشروحها ومعاجم اللغة',critic:'المراجع الناقد يفحص الجواب قبل إخراجه',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّحه'}[st.phase]||(st.searching&&!STEPS.some(x=>st.status[x.key]==='done')?'يبحث في المصادر الموثوقة على الإنترنت':active?active.name:'يقرأ الشبهة');
+ const where={retry:'تعثّر الاتصال بالنموذج لحظة، فأُعيد التحليل تلقائيًا',gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة',library:'يبحث في المكتبة الشاملة: متون الحديث وشروحها ومعاجم اللغة',critic:'المراجع الناقد يفحص الجواب قبل إخراجه',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّحه'}[st.phase]||(st.searching&&!STEPS.some(x=>st.status[x.key]==='done')?'يبحث في المصادر الموثوقة على الإنترنت':active?active.name:'يقرأ الشبهة');
  const seen=[st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب`:'',st.library?.length?`وعلى ${arCount(st.library.length,['نص واحد','نصين','نصوص','نصًا','نص'])} من المكتبة الشاملة`:''].filter(Boolean).join(' ');
  const bar=STEPS.map(x=>`<i class="${st.status[x.key]||'wait'}${x.core?' core':''}"></i>`).join('');
  return `<div class="progress" role="group" aria-label="سير التحليل"><div class="progress-top"><div><small>يجري التحليل، الخطوة ${active?STEPS.indexOf(active)+1:Math.min(done+1,STEPS.length)} من ${STEPS.length}</small><b>${esc(where)}…</b></div><span class="elapsed" data-elapsed>${elapsedText(st)}</span></div><div class="progress-bar" aria-hidden="true">${bar}</div><p>${seen?esc(seen)+'. ':''}يكتمل التحليل عادة خلال دقيقة تقريبًا، وتظهر كل خطوة حين تُكتب.${st.follow?'':' <button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</p></div>`;
@@ -831,7 +832,7 @@ document.addEventListener('submit',async e=>{
  }
  if(id==='ingest-form'){const form=new FormData();form.append('file',$('#pdf-file').files[0]);form.append('title',$('#pdf-title').value);form.append('author',$('#pdf-author').value);form.append('profile',$('#pdf-profile').value);notify('يجري استخراج الصفحات، وقد يستغرق ذلك عدة دقائق.');const r=await api('/ingest',{method:'POST',body:form});notify('سجلات جديدة بانتظار المراجعة: '+num(r.candidate_count));await render();}
  if(id==='diagnose-form'){
-  const body={text:$('#diagnose-text').value,include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all',deep_search:Boolean($('#deep-search')?.checked)};
+  const body={text:$('#diagnose-text').value,include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all'};
   const box=$('#diagnosis-result');box.innerHTML='<section class="method" data-method></section>';
   const root=box.firstElementChild,st=newMethod(body.text);mountMethod(root,st);
   root.scrollIntoView({behavior:calm()?'auto':'smooth',block:'start'});

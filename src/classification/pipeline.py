@@ -215,7 +215,7 @@ class OpenAIAnalyst:
         try:
             response = self._client.responses.parse(**request)
         except OpenAIError as error:
-            raise ValueError(f'provider_error: {type(error).__name__}') from error
+            raise ValueError(f'provider_error: {type(error).__name__}: {str(error)[:300]}') from error
         if response.output_parsed is None: raise ValueError('provider_refused_or_incomplete')
         return response.output_parsed.model_dump()
 
@@ -257,7 +257,25 @@ def get_analyst():
     return None
 
 
+def _provider_failure(error):
+    """A failure of the provider itself (connection, outage, a stream cut short), worth trying again."""
+    return isinstance(error, ValueError) and str(error).startswith('provider_')
+
+
 def _analyze_once(analyst, objection, rules, examples, emit, check_sources, revision=None, library=None, deep_search=False):
+    """Steps 1-9 and 11. A provider failure is tried again once; if the web search is the trouble, the analysis is
+    written without it (the Shamela excerpts stay). Only after that does the failure reach the reader."""
+    plan = [deep_search, deep_search, False] if deep_search else [False, False]
+    for attempt, deep in enumerate(plan):
+        if attempt: emit('stage', stage='retry', search=deep)
+        try:
+            return _one_pass(analyst, objection, rules, examples, emit, check_sources, revision, library, deep)
+        except ValueError as error:
+            if not _provider_failure(error) or attempt == len(plan) - 1: raise
+            log.warning('analysis attempt %d failed, trying again: %s', attempt + 1, str(error)[:160])
+
+
+def _one_pass(analyst, objection, rules, examples, emit, check_sources, revision, library, deep_search):
     """One pass through steps 1-9 and 11. Texts are checked against their sources while the rest is still being written."""
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
     pending = {}
@@ -304,6 +322,14 @@ def _method_texts(steps):
                 elif isinstance(v, dict): yield from (x for x in v.values() if isinstance(x, str))
 
 
+def _with_retry(call):
+    try: return call()
+    except ValueError as error:
+        if not _provider_failure(error): raise
+        log.warning('critical review failed once, trying again: %s', str(error)[:160])
+        return call()
+
+
 def _review(analyst, objection, rules, examples, raw, steps, emit, check_sources, library=None, deep_search=False, web=None):
     """Step 10: the critical reviewer objects before anything is shown. If the answer does not hold,
     the analysis is rebuilt once with the reviewer's notes and examined again."""
@@ -312,7 +338,7 @@ def _review(analyst, objection, rules, examples, raw, steps, emit, check_sources
     rounds = []
     for attempt in (1, 2):
         emit('stage', stage='critic', round=attempt)
-        try: report = critic(objection, rules, steps, library=library) if getattr(analyst, 'uses_library', False) else critic(objection, rules, steps)
+        try: report = _with_retry(lambda: critic(objection, rules, steps, library=library) if getattr(analyst, 'uses_library', False) else critic(objection, rules, steps))
         except provider_errors() as error:
             log.warning('critical review unavailable: %s', type(error).__name__)
             return raw, steps, {'available': False, 'rounds': rounds, 'holds': None, 'revised': attempt == 2}, web
@@ -332,7 +358,7 @@ def _review(analyst, objection, rules, examples, raw, steps, emit, check_sources
     return raw, steps, {'available': True, 'rounds': rounds, 'holds': rounds[-1]['holds'], 'revised': len(rounds) > 1}, web
 
 
-def diagnose(store, objection, analyst=None, retriever=None, exclude_ids=None, persist=True, *, include_drafts=False, requested_by=None, progress=None, check_sources=None, deep_search=False, use_library=True):
+def diagnose(store, objection, analyst=None, retriever=None, exclude_ids=None, persist=True, *, include_drafts=False, requested_by=None, progress=None, check_sources=None, deep_search=True, use_library=True):
     if not objection.strip() or len(objection) > 12000: raise ValueError('Input must contain 1-12000 characters')
     emit = progress or (lambda kind, **data: None)
     check_sources = check_sources or sources.check_texts

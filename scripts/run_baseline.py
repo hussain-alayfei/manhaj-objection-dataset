@@ -21,7 +21,7 @@ predictions={}
 for item in manifest['records']:
     if item['id'] not in manifest['test_ids']:continue
     if digest(store.get(item['id']))!=item['hash']:raise ValueError('Frozen benchmark changed')
-    predictions[item['id']]=diagnose(store,item['snapshot']['objection_text_ar'],exclude_ids=exclude,persist=False)
+    predictions[item['id']]=diagnose(store,item['snapshot']['objection_text_ar'],exclude_ids=exclude,persist=False,deep_search=False)
 path=Path(args.output);path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(predictions,ensure_ascii=False,indent=2),encoding='utf-8')
 result=evaluate_predictions(store,args.manifest_id,predictions)
 print(json.dumps(result['metrics'],ensure_ascii=False,indent=2))

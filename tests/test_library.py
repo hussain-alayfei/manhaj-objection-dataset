@@ -86,7 +86,7 @@ def test_the_analyst_and_the_critic_read_the_library(store, monkeypatch, turath)
     store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
     provider, events = Provider(), []
     out = diagnose(store, 'تفاحتين: ' + QUESTION, analyst=analyst(monkeypatch, provider), check_sources=lambda refs: [{'state': 'unchecked'} for _ in refs],
-                   progress=lambda kind, **data: events.append(kind))
+                   progress=lambda kind, **data: events.append(kind), deep_search=False)
     analysis, critic = (json.loads(c['input'][1]['content']) for c in provider.calls)
     assert analysis['library_excerpts'][0]['source'] == 'البحر المحيط الثجاج، ج21 ص383' and 'للتكثير' in analysis['library_excerpts'][0]['text']
     assert critic['library_excerpts'] == analysis['library_excerpts']
@@ -109,16 +109,17 @@ def test_web_trail_tolerates_responses_without_searches():
     assert _web_trail(SimpleNamespace(output=None)) == {'queries': [], 'sources': []}
 
 
-def test_deep_search_counts_twice_against_the_daily_limit(store, monkeypatch):
+def test_every_analysis_searches_and_counts_once_against_the_daily_limit(store, monkeypatch):
     from fastapi.testclient import TestClient
     from src.api import create_app
-    monkeypatch.setenv('DIAGNOSE_DAILY_LIMIT', '3')
+    seen = []
+    monkeypatch.setattr('src.api.diagnose', lambda *a, **kw: seen.append(kw['deep_search']) or {'ok': True})
+    monkeypatch.setenv('DIAGNOSE_DAILY_LIMIT', '2')
     client = TestClient(create_app(store, {'expert': 'a' * 64}, hosted=False))
     token = client.post('/api/auth/signup', json={'name': 'باحث', 'email': 'reader@example.com', 'password': 'Quiet-River-73'}).json()['token']
     auth = {'Authorization': 'Bearer ' + token}
-    assert client.post('/api/diagnose', headers=auth, json={'text': 'شبهة', 'deep_search': True}).status_code == 200
-    assert client.post('/api/diagnose', headers=auth, json={'text': 'شبهة'}).status_code == 200
-    assert client.post('/api/diagnose', headers=auth, json={'text': 'شبهة'}).status_code == 429
+    assert [client.post('/api/diagnose', headers=auth, json={'text': 'شبهة'}).status_code for _ in range(3)] == [200, 200, 429]
+    assert seen == [True, True]
 
 
 def test_deep_search_links_are_kept_out_of_the_text(store, monkeypatch, turath):
@@ -130,3 +131,48 @@ def test_deep_search_links_are_kept_out_of_the_text(store, monkeypatch, turath):
     out = diagnose(store, 'تفاحتين: ' + QUESTION, analyst=analyst(monkeypatch, provider), check_sources=lambda refs: [{'state': 'unchecked'} for _ in refs], deep_search=True)
     answer = out['method']['steps']['step11_answer']
     assert answer['origin'] == 'افتراض الحصر.' and answer['sources'] == ['فتح الباري']
+
+
+
+class Flaky(Provider):
+    """Fails like a cut stream a set number of times, then answers."""
+    def __init__(self, failures, fail_with_search_only=False):
+        super().__init__(); self.failures, self.search_only = failures, fail_with_search_only
+
+    def parse(self, **request):
+        from openai import APIError
+        if request['text_format'] is MethodProposal and self.failures and (not self.search_only or 'tools' in request):
+            self.failures -= 1; self.calls.append(request)
+            raise APIError('stream cut', request=None, body=None)
+        return super().parse(**request)
+
+
+def test_a_provider_hiccup_is_retried_without_reaching_the_reader(store, monkeypatch, turath):
+    store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
+    provider, events = Flaky(1), []
+    out = diagnose(store, 'تفاحتين: ' + QUESTION, analyst=analyst(monkeypatch, provider), check_sources=lambda refs: [{'state': 'unchecked'} for _ in refs],
+                   progress=lambda kind, **data: events.append((kind, data.get('stage'))))
+    assert out['abstention_reason'] is None and ('stage', 'retry') in events
+    assert ['tools' in c for c in provider.calls if c['text_format'] is MethodProposal] == [True, True]
+
+
+def test_a_search_that_keeps_failing_is_dropped_and_the_library_stays(store, monkeypatch, turath):
+    store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
+    provider = Flaky(5, fail_with_search_only=True)
+    out = diagnose(store, 'تفاحتين: ' + QUESTION, analyst=analyst(monkeypatch, provider), check_sources=lambda refs: [{'state': 'unchecked'} for _ in refs])
+    tries = [c for c in provider.calls if c['text_format'] is MethodProposal]
+    assert ['tools' in c for c in tries] == [True, True, False] and out['abstention_reason'] is None
+    assert 'library_excerpts' in json.loads(tries[-1]['input'][1]['content'])
+
+
+def test_the_reviewer_is_tried_twice(store, monkeypatch, turath):
+    store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
+    provider = Provider(); original = provider.parse; failed = []
+    def parse(**request):
+        from openai import APIError
+        if request['text_format'] is CriticReport and not failed:
+            failed.append(1); raise APIError('down', request=None, body=None)
+        return original(**request)
+    provider.parse = parse
+    out = diagnose(store, 'تفاحتين: ' + QUESTION, analyst=analyst(monkeypatch, provider), check_sources=lambda refs: [{'state': 'unchecked'} for _ in refs])
+    assert out['method']['review']['available'] is True and failed == [1]
