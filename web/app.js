@@ -320,7 +320,7 @@ async function overview(){
   <section class="card"><div class="card-head"><h3>بانتظار المراجعة</h3><button class="quiet" data-go="review">عرض الكل</button></div>${records.items.map(r=>`<div class="row"><div class="text"><h4>${esc(ar(r.title_ar))}</h4><p>${esc(where(r))}</p></div><button data-open="${esc(r.id)}">مراجعة</button></div>`).join('')||'<div class="empty">لا توجد حالات بانتظار المراجعة.</div>'}</section>
 
  </div>
- <section class="method-band" aria-labelledby="method-title"><div class="method-inner"><h3 id="method-title">كيف يفكر مَنْهَج حين تصله شبهة؟</h3><p>منهج لا يحفظ الأجوبة، بل يتتبع منشأ الشبهة ويفككها بالدليل، على أصل الكتاب: الشريعة لا تفرّق بين المتماثلات، ولا تجمع بين المختلفات.</p><ol class="path">${STEPS.map(x=>`<li${x.core?' class="core"':''}><span aria-hidden="true">${x.mark}</span>${x.name}</li>`).join('')}</ol></div></section>`;
+ <section class="method-band" aria-labelledby="method-title"><div class="method-inner"><h3 id="method-title">كيف يفكر مَنْهَج حين تصله شبهة؟</h3><p>منهج لا يحفظ الأجوبة، بل يتتبع منشأ الشبهة ويفككها بالدليل، على أصل الكتاب: الشريعة لا تفرّق بين المتماثلات، ولا تجمع بين المختلفات.</p><ol class="path">${STEPS.map(x=>`<li${x.core?' class="core"':''}><small>${x.core?'قلب المنهج':x.ord.replace(' من إحدى عشرة','')}</small>${x.name}</li>`).join('')}</ol></div></section>`;
 }
 // ---------- Analyse an objection, with the reviewer's own history ----------
 const when=iso=>iso?new Date(iso).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
@@ -552,18 +552,18 @@ $('#book').addEventListener('touchend',e=>{if(touchX===null)return;const dx=e.ch
 // so each step shows the moment it is written; the rail on the side is the path, the panel is the step.
 const BOOK='كتاب «تربية الملكة على كشف الشبهة» للشيخ وليد بن راشد السعيدان';
 const STEPS=[
- {key:'step1_framing',mark:'1',name:'تحرير الشبهة',tag:'تحويل كلام السائل إلى بنية منطقية واضحة'},
- {key:'step2_entities',mark:'2',name:'استخراج الكيانات والأدلة',tag:'كل ما تقوم عليه الشبهة… مستخرَج ومصنَّف'},
- {key:'step3_sources',mark:'3',name:'التحقق من المصادر',tag:'لا جواب يُبنى على نص لا يثبت'},
- {key:'step4_related',mark:'4',name:'جمع النصوص ذات الصلة',tag:'اجمع قبل أن تحكم'},
- {key:'step5_language',mark:'5',name:'التحليل اللغوي والدلالي',tag:'اللفظ كما فهمه العرب زمن النص'},
- {key:'step6_comparison',mark:'6',name:'المقارنة الدلالية',tag:'هل النصان يتحدثان عن الشيء نفسه أصلًا؟'},
- {key:'governing_rules',mark:'◆',name:'القاعدتان الحاكمتان',tag:'مستفادتان من '+BOOK,core:true},
- {key:'step7_hypotheses',mark:'7',name:'توليد الفرضيات',tag:'فرضيات متعددة لمنشأ الشبهة، بلا قفز إلى أول تفسير'},
- {key:'step8_tests',mark:'8',name:'اختبار الفرضيات',tag:'لكل فرضية دليل… وإلا استُبعدت'},
- {key:'step9_map',mark:'9',name:'بناء خريطة الاستدلال',tag:'من الشبهة إلى النتيجة، خطوة خطوة'},
- {key:'review',mark:'10',name:'المراجع الناقد',tag:'طبقة ثانية تعترض قبل الإخراج'},
- {key:'step11_answer',mark:'11',name:'صياغة الجواب',tag:'جواب موثّق… لا فتوى'}];
+ {key:'step1_framing',mark:'1',ord:'الخطوة الأولى من إحدى عشرة',name:'تحرير الشبهة',tag:'تحويل كلام السائل إلى بنية منطقية واضحة'},
+ {key:'step2_entities',mark:'2',ord:'الخطوة الثانية من إحدى عشرة',name:'استخراج الكيانات والأدلة',tag:'كل ما تقوم عليه الشبهة… مستخرَج ومصنَّف'},
+ {key:'step3_sources',mark:'3',ord:'الخطوة الثالثة من إحدى عشرة',name:'التحقق من المصادر',tag:'لا جواب يُبنى على نص لا يثبت'},
+ {key:'step4_related',mark:'4',ord:'الخطوة الرابعة من إحدى عشرة',name:'جمع النصوص ذات الصلة',tag:'اجمع قبل أن تحكم'},
+ {key:'step5_language',mark:'5',ord:'الخطوة الخامسة من إحدى عشرة',name:'التحليل اللغوي والدلالي',tag:'اللفظ كما فهمه العرب زمن النص'},
+ {key:'step6_comparison',mark:'6',ord:'الخطوة السادسة من إحدى عشرة',name:'المقارنة الدلالية',tag:'هل النصان يتحدثان عن الشيء نفسه أصلًا؟'},
+ {key:'governing_rules',mark:'◆',ord:'قلب المنهج، بين السادسة والسابعة',name:'القاعدتان الحاكمتان',tag:'مستفادتان من '+BOOK,core:true},
+ {key:'step7_hypotheses',mark:'7',ord:'الخطوة السابعة من إحدى عشرة',name:'توليد الفرضيات',tag:'فرضيات متعددة لمنشأ الشبهة، بلا قفز إلى أول تفسير'},
+ {key:'step8_tests',mark:'8',ord:'الخطوة الثامنة من إحدى عشرة',name:'اختبار الفرضيات',tag:'لكل فرضية دليل… وإلا استُبعدت'},
+ {key:'step9_map',mark:'9',ord:'الخطوة التاسعة من إحدى عشرة',name:'بناء خريطة الاستدلال',tag:'من الشبهة إلى النتيجة، خطوة خطوة'},
+ {key:'review',mark:'10',ord:'الخطوة العاشرة من إحدى عشرة',name:'المراجع الناقد',tag:'طبقة ثانية تعترض قبل الإخراج'},
+ {key:'step11_answer',mark:'11',ord:'الخطوة الحادية عشرة من إحدى عشرة',name:'صياغة الجواب',tag:'جواب موثّق… لا فتوى'}];
 const stepAt=key=>STEPS.findIndex(s=>s.key===key);
 const methodViews=new WeakMap();
 const plain=v=>String(v??'').replace(/\s*\(?\b(?:RUL|SHB|FAM)-[0-9a-z]+\b\)?/gi,'').replace(/\s{2,}/g,' ').trim(); // never show internal record codes
@@ -575,7 +575,7 @@ const ICON_SHIELD='<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="
 const ICON_LINK='<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m-11 5L21 3m-3 10v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
 const rulesWord=n=>arCount(n,['قاعدة واحدة','قاعدتين','قواعد','قاعدةً','قاعدة']);
 
-function newMethod(input){return {input,steps:{},status:{},checks:{},rounds:[],review:null,current:0,follow:true,phase:'gather',gathered:null,result:null,received:0};}
+function newMethod(input){return {started:Date.now(),input,steps:{},status:{},checks:{},rounds:[],review:null,current:0,follow:true,phase:'gather',gathered:null,result:null,received:0};}
 function methodFromResult(r){
  const st=newMethod(r.input_ar);
  methodDone(st,r);st.follow=false;
@@ -587,6 +587,7 @@ function methodEvent(st,ev){
  if(ev.type==='gathered')st.gathered=ev;
  if(ev.type==='stage'){
   st.phase=ev.stage;
+  if(ev.stage==='analyze'&&!st.status.step1_framing)st.status.step1_framing='active';
   if(ev.stage==='critic')st.status.review='active';
   if(ev.stage==='revise'){for(const s of STEPS)if(s.key!=='review')st.status[s.key]='wait';st.steps={};st.checks={};}
  }
@@ -613,25 +614,27 @@ function methodHead(st){
   const by=consulted?`اطّلع التحليل على ${rulesWord(consulted)} من الكتاب${cited?`، واستند إلى ${rulesWord(cited)} منها`:''}.`:'';
   return `<div class="verdict">${r.mode==='draft'?'<span class="pill draft">مسودة</span>':''}<strong>${esc(patternName(a.primary_pattern))}</strong>${answer.confidence_label?`<span class="pill">${esc(CONF[answer.confidence_label]||answer.confidence_label)}</span>`:''}<span class="pill pending">يحتاج مراجعة مختص</span></div>${by?`<p class="analysis-by">${by}</p>`:''}`;
  }
- const active=STEPS.find(s=>st.status[s.key]==='active');
- const line={gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة…',critic:'يفحص المراجع الناقد الجواب قبل إخراجه…',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّح ما أشار إليه المراجع الناقد…'}[st.phase]
-  ||(active?`يعمل الآن على: ${active.name}`:'يقرأ الشبهة ويحرّرها…');
-  const seen=st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب. `:'';
- return `<div class="method-live"><span class="pulse" aria-hidden="true"></span><p>${esc(seen+line)}</p>${st.follow?'':'<button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</div>`;
+ const done=STEPS.filter(x=>['done','draft','fail'].includes(st.status[x.key])).length;
+ const active=STEPS.find(x=>st.status[x.key]==='active');
+ const where={gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة',critic:'المراجع الناقد يفحص الجواب قبل إخراجه',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّحه'}[st.phase]||(active?active.name:'يقرأ الشبهة');
+ const seen=st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب`:'';
+ const bar=STEPS.map(x=>`<i class="${st.status[x.key]||'wait'}${x.core?' core':''}"></i>`).join('');
+ return `<div class="progress" role="group" aria-label="سير التحليل"><div class="progress-top"><div><small>يجري التحليل، الخطوة ${active?STEPS.indexOf(active)+1:Math.min(done+1,STEPS.length)} من ${STEPS.length}</small><b>${esc(where)}…</b></div><span class="elapsed" data-elapsed>${elapsedText(st)}</span></div><div class="progress-bar" aria-hidden="true">${bar}</div><p>${seen?esc(seen)+'. ':''}يكتمل التحليل عادة خلال دقيقة تقريبًا، وتظهر كل خطوة حين تُكتب.${st.follow?'':' <button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</p></div>`;
 }
+const elapsedText=st=>{const sec=Math.max(0,Math.round((Date.now()-(st.started||Date.now()))/1000));return sec<60?arCount(sec,['ثانية واحدة','ثانيتان','ثوانٍ','ثانيةً','ثانية']):`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')} دقيقة`;};
 const RAIL_STATE={done:'اكتملت',active:'جارية الآن',draft:'صيغت وتنتظر المراجعة',fail:'لم يصمد الجواب',skip:'لم تُجرَ',wait:'لم تبدأ بعد'};
 function railHtml(st){
  return STEPS.map((s,i)=>{const status=st.status[s.key]||'wait';
-  const mark=status==='done'?'✓':status==='fail'?'✗':s.mark;
-  return `<li class="st ${status}${s.core?' core':''}${i===st.current?' current':''}"><button type="button" data-mstep="${i}" aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}"><span class="dot" aria-hidden="true">${mark}</span><span class="st-name">${s.name}</span></button></li>`;}).join('');
+  const note=status==='active'?'<em>جارية</em>':status==='done'?'<em>✓</em>':status==='fail'?'<em>✗</em>':status==='draft'?'<em>تُراجَع</em>':'';
+  return `<li class="st ${status}${s.core?' core':''}${i===st.current?' current':''}"><button type="button" data-mstep="${i}" aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}"><span class="st-name">${s.core?'◆ ':''}${s.name}</span>${note}</button></li>`;}).join('');
 }
 function panelHtml(st){
  const i=st.current,s=STEPS[i],status=st.status[s.key]||'wait',d=st.steps[s.key];
  const body=s.key==='review'?reviewHtml(st):d!==undefined?STEP_VIEWS[s.key](d,st):waitingHtml(status);
  const prev=STEPS[i-1],next=STEPS[i+1];
- return `<article class="panel${s.core?' core':''}" aria-label="${s.name}"><span class="panel-num" aria-hidden="true">${s.core?'◆':s.mark.padStart(2,'0')}</span><header class="panel-head"><h3>${s.name}</h3><p>${esc(s.tag)}</p></header><div class="panel-body">${body}</div><footer class="panel-nav">${prev?`<button type="button" class="quiet" data-mnav="-1">السابق: ${prev.name}</button>`:'<span></span>'}${next?`<button type="button" class="quiet" data-mnav="1">التالي: ${next.name}</button>`:'<span></span>'}</footer></article>`;
+ return `<article class="panel${s.core?' core':''}" aria-label="${s.name}"><header class="panel-head"><small class="panel-ord">${s.ord}</small><h3>${s.name}</h3><p>${esc(s.tag)}</p></header><div class="panel-body">${body}</div><footer class="panel-nav">${prev?`<button type="button" class="quiet" data-mnav="-1">السابق: ${prev.name}</button>`:'<span></span>'}${next?`<button type="button" class="quiet" data-mnav="1">التالي: ${next.name}</button>`:'<span></span>'}</footer></article>`;
 }
-const waitingHtml=status=>status==='active'?'<div class="panel-wait live"><span class="pulse" aria-hidden="true"></span><p>تُكتب هذه الخطوة الآن…</p></div>':'<div class="panel-wait"><p>لم يصل التحليل إلى هذه الخطوة بعد، وستظهر هنا حين يكتبها.</p></div>';
+const waitingHtml=status=>status==='active'?'<div class="writing" role="status"><p><span class="pulse" aria-hidden="true"></span>تُكتب هذه الخطوة الآن، وتظهر هنا حين تكتمل.</p><i></i><i></i><i></i><i></i></div>':'<div class="panel-wait"><p>لم يصل التحليل إلى هذه الخطوة بعد، وستظهر هنا حين يكتبها.</p></div>';
 
 // Texts and their checks against the Mushaf and the books of hadith
 const KIND={'آية':'نص الآية','حديث':'الحديث','أثر':'الأثر','قول عالم':'قول عالم'};
@@ -705,7 +708,8 @@ function reviewHtml(st){
  return `<div class="m-critic">${CRITIC.map(([k,q])=>{const c=last[k]||{};return `<div class="cq ${c.ok?'ok':'bad'}"><span class="mark" aria-hidden="true">${c.ok?'✓':'✗'}</span><b>${q}</b>${c.note?.trim()?`<p>${txt(c.note)}</p>`:''}</div>`;}).join('')}</div>${first?`<div class="m-loop">${ICON_LOOP}<div><b>لم يصمد الجواب في المراجعة الأولى، فعاد إلى التحليل</b>${first.revision?`<p>${txt(first.revision)}</p>`:''}</div></div>`:''}${status==='active'?'<div class="panel-wait live"><span class="pulse" aria-hidden="true"></span><p>يُعاد فحص الجواب بعد تصحيحه…</p></div>':`<p class="m-verdict ${last.holds?'ok':returning?'loop':'bad'}">${last.holds?`${ICON_SHIELD} صمد الجواب أمام المراجعة`:returning?`${ICON_LOOP} لم يصمد الجواب؟ يعود إلى التحليل`:`بقيت ملاحظات على الجواب، فخُفّضت درجة الثقة.${last.revision?' '+txt(last.revision):''}`}</p>`}`;
 }
 
-function mountMethod(root,st){methodViews.set(root,st);root.innerHTML=`<div class="method-head" data-mhead aria-live="polite"></div><div class="method-body"><ol class="rail" aria-label="خطوات التحليل" data-mrail></ol><div class="stage" data-mstage></div></div>`;updateMethod(root);}
+function mountMethod(root,st){methodViews.set(root,st);
+ if(!st.result){const clock=setInterval(()=>{const el=root.querySelector('[data-elapsed]');if(st.result||!root.isConnected){clearInterval(clock);return;}if(el)el.textContent=elapsedText(st);},1000);}root.innerHTML=`<div class="method-head" data-mhead aria-live="polite"></div><div class="method-body"><ol class="rail" aria-label="خطوات التحليل" data-mrail></ol><div class="stage" data-mstage></div></div>`;updateMethod(root);}
 function updateMethod(root,{animate=0}={}){
  const st=methodViews.get(root);if(!st)return;
  // the status line is read aloud when it changes, so it is rewritten only then
@@ -864,7 +868,7 @@ const DEMO={input:'كيف يقول ﷺ: «سبعين خريفًا»، وفي ح�
 let deckAt=0;
 function deckWindow(s,k){
  const body=s.key==='review'?reviewHtml(DEMO):STEP_VIEWS[s.key](DEMO.steps[s.key],DEMO);
- return `<article class="win" data-win="${k}" aria-label="${s.name}"><div class="win-bar"><span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span><b>${s.name}</b><span class="win-tag">مثال توضيحي</span></div><div class="win-body"><span class="panel-num" aria-hidden="true">${s.core?'◆':s.mark.padStart(2,'0')}</span><header class="panel-head"><h3>${s.name}</h3><p>${esc(s.tag)}</p></header>${body}</div></article>`;
+ return `<article class="win" data-win="${k}" aria-label="${s.name}"><div class="win-bar"><span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span><b>${s.name}</b><span class="win-tag">مثال توضيحي</span></div><div class="win-body"><header class="panel-head"><small class="panel-ord">${s.ord}</small><h3>${s.name}</h3><p>${esc(s.tag)}</p></header>${body}</div></article>`;
 }
 function showDeck(index){
  const deck=$('#deck');if(!deck)return;

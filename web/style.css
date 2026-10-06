@@ -626,28 +626,10 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 @keyframes pulse{0%{box-shadow:0 0 0 0 #164b3d55}80%,100%{box-shadow:0 0 0 10px #164b3d00}}
 .method-body{display:grid;grid-template-columns:240px minmax(0,1fr);gap:22px;align-items:start}
 
-.rail{list-style:none;margin:0;padding:4px 0;position:sticky;top:20px}
-.rail .st{position:relative}
-.rail .st:not(:last-child)::after{content:'';position:absolute;inset-inline-start:21px;top:34px;height:calc(100% - 22px);border-inline-start:2px solid #dbe3dc;transition:border-color .4s ease}
-.rail .st.done:not(:last-child)::after{border-color:#9fbfac}
-.rail button{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:5px 8px;border:0;border-radius:10px;background:transparent;text-align:right;color:#8a9790;font-size:14px;line-height:1.5;transition:background-color var(--fade),color var(--fade),box-shadow var(--fade)}
-.rail button:hover{background:#eff3ee;color:var(--ink)}
-.rail .dot{position:relative;z-index:1;flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#fff;border:1.5px solid #c9d4cb;font-size:12.5px;font-weight:600;color:#7d8b84;transition:background-color .35s ease,border-color .35s ease,color .35s ease}
-.rail .done .dot{background:var(--green);border-color:var(--green);color:#fff;animation:dot-done .35s ease}
 @keyframes dot-done{50%{transform:scale(1.15)}}
-.rail .active .dot{border-color:var(--green);color:var(--green);animation:pulse 1.6s ease-out infinite}
-.rail .draft .dot{border-style:dashed;border-color:var(--green);color:var(--green)}
-.rail .fail .dot{background:var(--red-tint);border-color:#e1aea6;color:var(--red)}
-.rail .skip .dot{border-style:dashed}
-.rail .core .dot{border-color:var(--gold);color:var(--gold)}
-.rail .core.done .dot{background:var(--gold);border-color:var(--gold);color:#fff}
-.rail .done .st-name,.rail .draft .st-name,.rail .fail .st-name,.rail .active .st-name{color:var(--ink)}
-.rail .current button{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px #dde5dd,0 4px 14px #1c302c12}
 
 .stage{min-width:0}
 .panel{position:relative;background:var(--surface);border:1px solid #dfe6df;border-radius:16px;padding:26px 30px 16px;box-shadow:0 1px 2px #1c302c08,0 12px 32px #1c302c0d;overflow:hidden}
-.panel-num{position:absolute;top:4px;inset-inline-end:22px;font-family:var(--naskh);font-weight:700;font-size:92px;line-height:1.1;color:#1c302c0c;pointer-events:none;user-select:none}
-.panel.core .panel-num{color:#aa834824}
 .panel-head{position:relative;margin-bottom:18px;padding-inline-end:96px}
 .panel-head h3{font-size:28px;line-height:1.5;color:var(--green-deep)}
 .panel-head p{margin-top:2px;color:var(--gold);font-size:14.5px}
@@ -848,7 +830,6 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .method-inner ol.path{grid-template-columns:repeat(6,minmax(0,1fr))}
 .method-inner .path li::before{content:none}
 .method-inner .path li{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
-.method-inner .path li span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid #e7cf9f80;color:#e7cf9f;font-size:12.5px;font-weight:600}
 .method-inner .path li.core{background:#e7cf9f1c;border-color:#e7cf9f5c}
 
 /* Landing: how Manhaj thinks when an objection arrives */
@@ -856,8 +837,6 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .way{list-style:none;position:relative;max-width:820px;margin:0 auto;padding:0}
 .way::before{content:'';position:absolute;inset-inline-start:21px;top:22px;bottom:22px;border-inline-start:2px solid #d5e1d7}
 .way li{position:relative;display:flex;gap:18px;padding:11px 0}
-.way-dot{position:relative;z-index:1;flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--bg);border:1.5px solid #b6cdbe;color:var(--green);font-size:15px;font-weight:600}
-.way li.core .way-dot{border-color:var(--gold);background:#fdf8ee;color:var(--gold)}
 .way b{font-family:var(--naskh);font-size:21px;line-height:1.6;color:var(--green-deep)}
 .way li.core b{color:var(--amber)}
 .way .way-line{display:block;font-size:15px;line-height:1.9;color:var(--muted)}
@@ -875,13 +854,7 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 }
 @media(max-width:860px){
   .method-body{grid-template-columns:minmax(0,1fr);gap:12px}
-  .rail{position:static;display:flex;gap:4px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none;overscroll-behavior-x:contain}
-  .rail::-webkit-scrollbar{display:none}
-  .rail .st:not(:last-child)::after{display:none}
-  .rail button{flex-direction:column;justify-content:center;gap:4px;width:auto;min-height:0;padding:6px 8px}
-  .rail .st-name{font-size:11.5px;white-space:nowrap}
   .panel{padding:18px 16px 12px}
-  .panel-num{font-size:60px;inset-inline-end:12px}
   .panel-head{padding-inline-end:64px;margin-bottom:14px}
   .panel-head h3{font-size:22px}
   .panel-nav{flex-direction:column-reverse;align-items:stretch}
@@ -907,15 +880,9 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .way.interactive li{padding:3px 0;opacity:.6;transition:opacity .3s ease}
 .way.interactive li.on,.way.interactive li.done{opacity:1}
 .way.interactive li:not(.on) .way-line{display:none}
-.way.interactive li .way-dot{width:36px;height:36px;font-size:13.5px;transition:background-color .3s ease,border-color .3s ease,color .3s ease,box-shadow .3s ease}
 .way.interactive b{font-size:18px}
 .way.interactive::before{inset-inline-start:24px;top:24px;bottom:24px}
 .way.interactive::after{content:'';position:absolute;inset-inline-start:24px;top:24px;height:var(--fill,0px);border-inline-start:2px solid var(--green);transition:height .5s cubic-bezier(.2,.7,.2,1)}
-.way.interactive li.on .way-dot{border-color:var(--green);color:var(--green);box-shadow:0 0 0 5px #164b3d1a}
-.way.interactive li.done .way-dot{background:var(--green);border-color:var(--green);color:transparent}
-.way.interactive li.done .way-dot::after{content:'✓';position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:15px}
-.way.interactive li.core.on .way-dot{border-color:var(--gold);color:var(--gold);box-shadow:0 0 0 5px #aa834822}
-.way.interactive li.core.done .way-dot{background:var(--gold);border-color:var(--gold)}
 .way.interactive li.on b{color:var(--green)}
 .way.interactive li.core.on b{color:var(--amber)}
 .deck-wrap{position:sticky;top:96px}
@@ -948,3 +915,68 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .win>*{transition:opacity .25s ease}
 .win.behind>*{opacity:0}
 .win.behind{background:#fbfcf9}
+
+/* The path as a book's index: names with a thin margin mark; the place is said in words */
+.rail{list-style:none;margin:0;padding:6px 0;position:sticky;top:20px;border-inline-start:1px solid #dfe6df}
+.rail .st{position:relative}
+.rail button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:40px;padding:6px 14px;border:0;border-radius:0 10px 10px 0;background:transparent;text-align:right;color:#8a9790;font-size:14px;line-height:1.5;transition:background-color var(--fade),color var(--fade)}
+.rail button::before{content:'';position:absolute;inset-block:8px;inset-inline-start:-2px;width:3px;border-radius:3px;background:transparent;transition:background-color .3s ease}
+.rail button:hover{background:#eff3ee;color:var(--ink)}
+.rail em{font-style:normal;font-size:12px;color:var(--green)}
+.rail .done .st-name,.rail .draft .st-name,.rail .fail .st-name{color:var(--ink)}
+.rail .done button::before{background:#9fbfac}
+.rail .active button::before{background:var(--gold);animation:blink 1.2s ease-in-out infinite}
+.rail .active .st-name{color:var(--ink);font-weight:600}
+.rail .active em{color:var(--amber)}
+.rail .draft em{color:var(--amber)}
+.rail .fail em{color:var(--red)}
+.rail .fail button::before{background:var(--red)}
+.rail .core .st-name{color:var(--amber)}
+.rail .current button{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 0 #dfe6df,0 4px 14px #1c302c0f}
+.rail .current button::before{background:var(--green)}
+.panel-ord{display:block;font-size:12.5px;color:var(--muted);margin-bottom:2px}
+.panel.core .panel-ord{color:var(--amber)}
+.panel-head{padding-inline-end:0}
+
+/* The live header: which step, how far along, how long */
+.progress{padding:14px 18px 12px;border:1px solid #dfe7df;border-radius:14px;background:#f5f8f3}
+.progress-top{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.progress-top small{display:block;font-size:12.5px;color:var(--muted)}
+.progress-top b{display:block;font-family:var(--naskh);font-size:21px;line-height:1.6;color:var(--green-deep)}
+.elapsed{flex:none;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.progress-bar{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;margin:10px 0 8px}
+.progress-bar i{height:6px;border-radius:3px;background:#dfe6de;transition:background-color .4s ease}
+.progress-bar i.done,.progress-bar i.draft{background:var(--green)}
+.progress-bar i.core.done{background:var(--gold)}
+.progress-bar i.fail{background:var(--red)}
+.progress-bar i.active{background:linear-gradient(90deg,#dfe6de 0%,#c9a46a 50%,#dfe6de 100%);background-size:200% 100%;animation:sweep 1.4s linear infinite}
+@keyframes sweep{to{background-position:-200% 0}}
+.progress p{font-size:13px;color:var(--muted)}
+.progress .quiet{font-size:13px}
+
+/* A step being written */
+.writing{display:grid;gap:10px;margin-top:6px;padding:18px;border-radius:12px;background:#f7f8f4}
+.writing p{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--green-deep)}
+.writing i{display:block;height:12px;border-radius:6px;background:linear-gradient(90deg,#e8ece6 0%,#f4f6f2 50%,#e8ece6 100%);background-size:200% 100%;animation:sweep 1.6s linear infinite}
+.writing i:nth-child(3){width:86%}.writing i:nth-child(4){width:70%}.writing i:nth-child(5){width:48%}
+
+/* Overview band and landing list: ordinal words, no numbered circles */
+.method-inner .path li small{font-size:12px;color:#e7cf9f}
+.way::before{content:none}
+.way li{padding:0}
+.way-step{position:relative;padding:8px 16px;border-radius:0 12px 12px 0}
+.way-layout .way{border-inline-start:1px solid #d5e1d7}
+.way-step::before{content:'';position:absolute;inset-block:10px;inset-inline-start:-2px;width:3px;border-radius:3px;background:transparent;transition:background-color .3s ease}
+.way.interactive::after{content:none}
+.way.interactive li.done .way-step::before{background:#9fbfac}
+.way.interactive li.on .way-step::before{background:var(--green)}
+.way.interactive li.core.on .way-step::before{background:var(--gold)}
+.way.interactive li.on .way-step{background:#fff;box-shadow:0 4px 14px #1c302c0f}
+.way li.core b::before{content:'◆ ';font-size:13px}
+@media(max-width:860px){
+  .rail{position:static;display:flex;gap:4px;overflow-x:auto;padding:2px 2px 8px;border:0;border-bottom:1px solid #dfe6df;scrollbar-width:none}
+  .rail::-webkit-scrollbar{display:none}
+  .rail button{width:auto;white-space:nowrap;border-radius:10px 10px 0 0;padding:6px 12px}
+  .rail button::before{inset:auto 8px -1px 8px;width:auto;height:3px}
+  .progress-top b{font-size:18px}
+}
