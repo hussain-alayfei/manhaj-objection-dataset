@@ -374,6 +374,7 @@ async function analyzeView(){
     <label><input type="radio" name="rules-source" value="all" ${none?'checked':''}><span>كل قواعد الكتاب (مسودة)</span></label>
    </fieldset>
    ${none?'<small class="hint">لم تُعتمد قواعد بعد، لذلك يستعين التحليل بقواعد الكتاب قبل مراجعتها، وتُعلَّم النتيجة «مسودة».</small>':''}
+   ${caps.llm==='openai'?'<label class="check deep-search"><input type="checkbox" id="deep-search"><span>بحث موسّع في مصادر موثوقة على الإنترنت<small>الشاملة والدرر وسنة دوت كوم وإسلام ويب. أبطأ بنحو 20 ثانية، ويُحسب تحليلين من حدّك اليومي.</small></span></label>':''}
    <div class="analyze-foot"><span></span><div class="form-actions">${caps.semantic&&!caps.read_only&&me_.role==='admin'?'<button type="button" class="quiet" data-action="refresh-index">تحديث البحث</button>':''}<button class="primary big" id="diagnose-submit">حلّل الشبهة</button></div></div>
   </form>
   <p class="ai-note">النتيجة اقتراح آلي يعين على البحث، وليست فتوى ولا حكمًا، ولا تُعتمد قبل أن يراجعها مختص.</p>
@@ -585,6 +586,8 @@ function methodFromResult(r){
 function methodEvent(st,ev){
  st.received++;
  if(ev.type==='gathered')st.gathered=ev;
+ if(ev.type==='library')st.library=ev.excerpts||[];
+ if(ev.type==='searching')st.searching=true;
  if(ev.type==='stage'){
   st.phase=ev.stage;
   if(ev.stage==='analyze'&&!st.status.step1_framing)st.status.step1_framing='active';
@@ -597,7 +600,7 @@ function methodEvent(st,ev){
  if(ev.type==='critic'){st.rounds.push(ev.data);st.status.review=ev.data.holds?'done':'fail';if(ev.data.holds)st.status.step11_answer='done';if(st.follow)st.current=stepAt('review');}
 }
 function methodDone(st,r){
- st.result=r;st.phase='done';
+ st.result=r;st.phase='done';st.library=r.library?.excerpts||st.library||[];st.web=r.web_search||null;
  const m=r.method;if(!m)return;
  st.steps={...m.steps};st.review=m.review;st.rounds=m.review?.rounds||[];st.checks={};
  for(const s of STEPS)st.status[s.key]='done';
@@ -616,8 +619,8 @@ function methodHead(st){
  }
  const done=STEPS.filter(x=>['done','draft','fail'].includes(st.status[x.key])).length;
  const active=STEPS.find(x=>st.status[x.key]==='active');
- const where={gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة',critic:'المراجع الناقد يفحص الجواب قبل إخراجه',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّحه'}[st.phase]||(active?active.name:'يقرأ الشبهة');
- const seen=st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب`:'';
+ const where={gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة',library:'يبحث في المكتبة الشاملة: متون الحديث وشروحها ومعاجم اللغة',critic:'المراجع الناقد يفحص الجواب قبل إخراجه',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّحه'}[st.phase]||(st.searching&&!STEPS.some(x=>st.status[x.key]==='done')?'يبحث في المصادر الموثوقة على الإنترنت':active?active.name:'يقرأ الشبهة');
+ const seen=[st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب`:'',st.library?.length?`وعلى ${arCount(st.library.length,['نص واحد','نصين','نصوص','نصًا','نص'])} من المكتبة الشاملة`:''].filter(Boolean).join(' ');
  const bar=STEPS.map(x=>`<i class="${st.status[x.key]||'wait'}${x.core?' core':''}"></i>`).join('');
  return `<div class="progress" role="group" aria-label="سير التحليل"><div class="progress-top"><div><small>يجري التحليل، الخطوة ${active?STEPS.indexOf(active)+1:Math.min(done+1,STEPS.length)} من ${STEPS.length}</small><b>${esc(where)}…</b></div><span class="elapsed" data-elapsed>${elapsedText(st)}</span></div><div class="progress-bar" aria-hidden="true">${bar}</div><p>${seen?esc(seen)+'. ':''}يكتمل التحليل عادة خلال دقيقة تقريبًا، وتظهر كل خطوة حين تُكتب.${st.follow?'':' <button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</p></div>`;
 }
@@ -639,6 +642,7 @@ const waitingHtml=status=>status==='active'?'<div class="writing" role="status">
 // Texts and their checks against the Mushaf and the books of hadith
 const KIND={'آية':'نص الآية','حديث':'الحديث','أثر':'الأثر','قول عالم':'قول عالم'};
 const BADGE={verified:'✓ تحقق',excluded:'✗ مستبعد',mismatch:'لم يطابق مصدره',unchecked:'يحتاج تحققًا',unavailable:'تعذّر التحقق الآن',checking:'جارٍ التحقق'};
+const libraryHtml=(items,title)=>items&&items.length?`<h4 class="m-sub">${title}</h4><ul class="m-library">${items.map(e=>`<li><span class="m-kind">${esc(e.label)}</span><blockquote>${esc(ar(e.text))}</blockquote><p><b>${esc(e.book)}</b>${e.vol?`، ج${esc(e.vol)}`:''}${e.page?` ص${esc(e.page)}`:''}${e.url?`<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">افتحه في الشاملة ${ICON_LINK}</a>`:''}</p></li>`).join('')}</ul>`:'';
 const withChecks=(texts,checks)=>(texts||[]).map((t,i)=>({...t,check:t.check||checks?.[i]}));
 function textRow(t){
  const c=t.check||{},state=t.status==='غير ثابت'?'excluded':c.state||'checking';
@@ -672,9 +676,9 @@ const STEP_VIEWS={
  step4_related:(d,st)=>{const other=withChecks(d.other_texts,st.checks.step4_related);
   const node=(cls,label,list)=>{const v=(list||[]).filter(x=>String(x).trim());return `<div class="hub-node ${cls}${v.length?'':' empty'}"><b>${label}</b>${v.length?`<ul>${v.slice(0,3).map(x=>`<li>${txt(x)}</li>`).join('')}</ul>`:'<span>—</span>'}</div>`;};
   const rules=st.result?(st.result.retrieved_rules||[]).length:st.gathered?.rules||0;
-  return `<div class="m-hub">${node('n-top','النصوص الأخرى في الباب',other.map(t=>t.quote))}${node('n-tr','الروايات المختلفة',d.narrations)}${node('n-tl','السياق التاريخي',d.context)}<div class="hub-center"><b>المسألة</b><span>${d.issue?txt(d.issue):'—'}</span></div>${node('n-br','شروح العلماء',d.scholars)}${node('n-bl','القواعد الأصولية',d.usul)}${node('n-bottom','كلام أهل اللغة',d.language)}</div>${rules?`<p class="m-foot">ومن الكتاب: اطّلع التحليل على ${rulesWord(rules)} ذات صلة بالمسألة.</p>`:''}${other.length?`<h4 class="m-sub">التحقق من النصوص الأخرى</h4><ul class="m-texts">${other.map(textRow).join('')}</ul>`:''}`;},
- step5_language:d=>{const found=new Map((d.findings||[]).map(f=>[f.dimension,f.finding]));
-  return `<div class="m-cells four">${DIMENSIONS.map(x=>`<span class="m-cell${found.has(x)?' on':''}">${x}</span>`).join('')}</div>${findings([...found])||'<p class="m-empty">لم يتبيّن جانب لغوي مؤثر في هذه الشبهة.</p>'}`;},
+  return `<div class="m-hub">${node('n-top','النصوص الأخرى في الباب',other.map(t=>t.quote))}${node('n-tr','الروايات المختلفة',d.narrations)}${node('n-tl','السياق التاريخي',d.context)}<div class="hub-center"><b>المسألة</b><span>${d.issue?txt(d.issue):'—'}</span></div>${node('n-br','شروح العلماء',d.scholars)}${node('n-bl','القواعد الأصولية',d.usul)}${node('n-bottom','كلام أهل اللغة',d.language)}</div>${rules?`<p class="m-foot">ومن الكتاب: اطّلع التحليل على ${rulesWord(rules)} ذات صلة بالمسألة.</p>`:''}${other.length?`<h4 class="m-sub">التحقق من النصوص الأخرى</h4><ul class="m-texts">${other.map(textRow).join('')}</ul>`:''}${libraryHtml((st.library||[]).filter(e=>e.kind!=='lugha'),'من المكتبة الشاملة: المتون والشروح')}`;},
+ step5_language:(d,st)=>{const found=new Map((d.findings||[]).map(f=>[f.dimension,f.finding]));
+  return `<div class="m-cells four">${DIMENSIONS.map(x=>`<span class="m-cell${found.has(x)?' on':''}">${x}</span>`).join('')}</div>${findings([...found])||'<p class="m-empty">لم يتبيّن جانب لغوي مؤثر في هذه الشبهة.</p>'}${libraryHtml((st.library||[]).filter(e=>e.kind==='lugha'),'من معاجم اللغة في المكتبة الشاملة')}`;},
  step6_comparison:d=>{const notes=new Map((d.checks||[]).map(c=>[c.check,c.finding]));
   const q=(label,a)=>`<div class="m-qa"><span>${label}</span><em class="ans ${TONE[a?.answer]||'maybe'}">${esc(a?.answer||'—')}</em>${a?.why?`<p>${txt(a.why)}</p>`:''}</div>`;
   return `<div class="m-compare"><div class="m-side"><small>النص (أ)</small><b>${d.side_a?txt(d.side_a):'—'}</b></div><div class="m-qs">${q('الشيء نفسه؟',d.same_thing)}${q('الجهة نفسها؟',d.same_aspect)}${q('الدلالة نفسها؟',d.same_meaning)}</div><div class="m-side"><small>النص (ب)</small><b>${d.side_b?txt(d.side_b):'—'}</b></div></div><div class="m-cells">${CHECKS6.map(c=>`<span class="m-cell${notes.has(c)?' on':''}">${c}؟</span>`).join('')}</div>${findings([...notes])}${d.conclusion?`<p class="m-conclusion">${txt(d.conclusion)}</p>`:''}`;},
@@ -698,6 +702,7 @@ const STEP_VIEWS={
   ${d.disagreement?.trim()?`<div><dt>الخلاف في المسألة</dt><dd>${txt(d.disagreement)}</dd></div>`:''}
   ${d.revealing_question?.trim()?`<div><dt>سؤال يكشف الإشكال</dt><dd>${txt(d.revealing_question)}</dd></div>`:''}
   <div><dt>درجة الثقة</dt><dd class="m-conf"><span class="conf-track"><i data-conf="${Math.round(Math.min(1,Math.max(0,d.confidence||0))*100)}"></i></span><span>${esc(CONF[d.confidence_label]||d.confidence_label||'')}</span></dd></div>
+  ${st.web?.sources?.length?`<div><dt>مصادر البحث الموسّع</dt><dd><ul class="m-web">${st.web.sources.map(x=>`<li><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title||x.url)} ${ICON_LINK}</a></li>`).join('')}</ul></dd></div>`:''}
   </dl><div class="m-badges"><span class="b-gold">عند الخلاف: يُصرَّح به</span><span>لا يُصدر فتوى، ويُحيل إلى المختص</span>${reviewed}</div>`;},
 };
 function reviewHtml(st){
@@ -826,7 +831,7 @@ document.addEventListener('submit',async e=>{
  }
  if(id==='ingest-form'){const form=new FormData();form.append('file',$('#pdf-file').files[0]);form.append('title',$('#pdf-title').value);form.append('author',$('#pdf-author').value);form.append('profile',$('#pdf-profile').value);notify('يجري استخراج الصفحات، وقد يستغرق ذلك عدة دقائق.');const r=await api('/ingest',{method:'POST',body:form});notify('سجلات جديدة بانتظار المراجعة: '+num(r.candidate_count));await render();}
  if(id==='diagnose-form'){
-  const body={text:$('#diagnose-text').value,include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all'};
+  const body={text:$('#diagnose-text').value,include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all',deep_search:Boolean($('#deep-search')?.checked)};
   const box=$('#diagnosis-result');box.innerHTML='<section class="method" data-method></section>';
   const root=box.firstElementChild,st=newMethod(body.text);mountMethod(root,st);
   root.scrollIntoView({behavior:calm()?'auto':'smooth',block:'start'});
@@ -849,6 +854,9 @@ document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id
 // already seen (the seventy-autumns question, drawn with the site's own step views); the reader moves on.
 const DEMO_TEXT=(quote,collection,number,source,grade,reference,grades)=>({kind:'حديث',quote,surah:0,ayah:0,collection,number,source_ar:source,grade_ar:grade,status:'ثابت',check:{state:'verified',label:'وُجد في مصدره',reference,grades}});
 const DEMO={input:'كيف يقول ﷺ: «سبعين خريفًا»، وفي حديث آخر: «مائة عام»؟ أليس هذا تناقضًا؟',gathered:{rules:6},
+ library:[{kind:'sharh',label:'شروح الحديث',book:'البحر المحيط الثجاج في شرح صحيح مسلم',vol:'21',page:383,text:'قوله: «سبعين خريفًا» ليس للتحديد، وإنما هو للتكثير بدليل روايته بلفظ: «مائة عام».',url:'https://shamela.ws/book/148870/12595'},
+  {kind:'hadith',label:'متون الحديث',book:'صحيح سنن النسائي',vol:'2',page:480,text:'من صام يومًا في سبيل الله باعد الله منه جهنم مسيرة مائة عام.',url:'https://shamela.ws/book/1147/488'},
+  {kind:'lugha',label:'معاجم اللغة',book:'لسان العرب',vol:'9',page:63,text:'ليس الخريف في الأصل باسم الفصل، وإنما هو اسم مطر القيظ، ثم سُمّي الزمن به.',url:'https://shamela.ws/book/1687/4370'}],
  status:Object.fromEntries(STEPS.map(x=>[x.key,'done'])),checks:{},review:{available:true,holds:true,revised:false},
  result:{analysis:{methodology_rule_ar:'الشريعة لا تفرّق بين المتماثلات، ولا تجمع بين المختلفات.'},source_evidence:[],retrieved_rules:[1,2,3,4,5,6]},
  rounds:[{misunderstood:{ok:true,note:'حُرّرت الدعوى كما قصدها السائل: تعارض العددين.'},evidence_proves:{ok:true,note:'كل خطوة في التفكيك مسنودة بدليلها.'},contrary_text:{ok:true,note:'لا نص يعارض حمل العدد على التكثير.'},unsourced_attribution:{ok:true,note:'الروايتان مطابقتان لمصدريهما.'},possibility_as_certainty:{ok:true,note:'وُصف الجواب بأنه توجيه معتبر غير قطعي.'},stronger_explanation:{ok:true,note:'لم يظهر تفسير أقوى.'},holds:true,revision:''}],
