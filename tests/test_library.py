@@ -119,3 +119,14 @@ def test_deep_search_counts_twice_against_the_daily_limit(store, monkeypatch):
     assert client.post('/api/diagnose', headers=auth, json={'text': 'شبهة', 'deep_search': True}).status_code == 200
     assert client.post('/api/diagnose', headers=auth, json={'text': 'شبهة'}).status_code == 200
     assert client.post('/api/diagnose', headers=auth, json={'text': 'شبهة'}).status_code == 429
+
+
+def test_deep_search_links_are_kept_out_of_the_text(store, monkeypatch, turath):
+    store.add(record('RUL-test', 'rule')); approve(store, 'RUL-test')
+    provider = Provider()
+    linked = method_data(step11_answer={'origin': 'افتراض الحصر. ([islamweb.net](https://www.islamweb.net/ar/x))', 'sources': ['[فتح الباري](https://shamela.ws/book/1673/3242)']})
+    original = provider.parse
+    provider.parse = lambda **request: SimpleNamespace(output_parsed=MethodProposal.model_validate(linked), output=[]) if request['text_format'] is MethodProposal else original(**request)
+    out = diagnose(store, 'تفاحتين: ' + QUESTION, analyst=analyst(monkeypatch, provider), check_sources=lambda refs: [{'state': 'unchecked'} for _ in refs], deep_search=True)
+    answer = out['method']['steps']['step11_answer']
+    assert answer['origin'] == 'افتراض الحصر.' and answer['sources'] == ['فتح الباري']

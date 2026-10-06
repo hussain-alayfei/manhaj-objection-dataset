@@ -181,6 +181,9 @@ class OpenAIAnalyst:
         request = self._request(system, payload, MethodProposal, self.model, int(os.getenv('DIAGNOSIS_MAX_OUTPUT_TOKENS', '12000')))
         # "Deep search": the model may look things up on a few trusted sites before writing
         if deep_search: request['tools'] = [{'type': 'web_search', 'filters': {'allowed_domains': WEB_DOMAINS}}]
+        if on_step and deep_search:  # keep the live steps free of the search's markdown links too
+            report = on_step
+            on_step = lambda kind, key, value: report(kind, key, _strip_citations(value))
         watcher = StepWatcher(on_step) if on_step else None
         try:
             if watcher:
@@ -198,6 +201,9 @@ class OpenAIAnalyst:
         parsed = response.output_parsed
         if parsed is None: raise ValueError('provider_refused_or_incomplete')
         steps = parsed.model_dump()
+        if deep_search:
+            steps = _strip_citations(steps)
+            parsed = MethodProposal.model_validate(steps)
         if watcher: watcher.finish(steps)
         return dict(parsed.to_analysis().model_dump(), method=steps, web=_web_trail(response) if deep_search else None)
 
@@ -214,6 +220,22 @@ class OpenAIAnalyst:
         return response.output_parsed.model_dump()
 
 
+MD_WRAPPED = re.compile(r'\s*\(\[[^\]]{1,200}\]\(https?://[^)\s]+\)\)')
+MD_LINK = re.compile(r'\[([^\]]{1,200})\]\(https?://[^)\s]+\)')
+
+
+def _strip_citations(value):
+    """A deep search writes markdown links into the text; the cited pages are listed apart, so the text keeps only words."""
+    if isinstance(value, str): return re.sub(r'\s{2,}', ' ', MD_LINK.sub(r'\1', MD_WRAPPED.sub('', value))).strip()
+    if isinstance(value, list): return [_strip_citations(v) for v in value]
+    if isinstance(value, dict): return {k: _strip_citations(v) for k, v in value.items()}
+    return value
+
+
+def _clean_url(url):
+    return re.sub(r'[?&]utm_source=openai$', '', url)
+
+
 def _web_trail(response):
     """What a deep search looked up and the pages it cited."""
     queries, cited = [], {}
@@ -224,7 +246,7 @@ def _web_trail(response):
             for part in getattr(item, 'content', None) or []:
                 for note in getattr(part, 'annotations', None) or []:
                     if getattr(note, 'type', '') == 'url_citation' and getattr(note, 'url', None):
-                        cited.setdefault(note.url, getattr(note, 'title', '') or note.url)
+                        cited.setdefault(_clean_url(note.url), getattr(note, 'title', '') or note.url)
     return {'queries': queries, 'sources': [{'url': u, 'title': t} for u, t in cited.items()]}
 
 
