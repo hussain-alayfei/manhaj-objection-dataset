@@ -109,6 +109,7 @@ function applyNav(){document.body.classList.toggle('nav-collapsed',!phone()&&nav
 document.querySelectorAll('#nav [data-view]').forEach(b=>b.title=b.textContent.trim());
 $('#nav-toggle').addEventListener('click',()=>{if(phone()){const open=document.body.classList.toggle('nav-open');$('#nav-toggle').setAttribute('aria-expanded',String(open));}else{navPref.set(navPref.get()==='collapsed'?'open':'collapsed');applyNav();}});
 $('#nav-backdrop').addEventListener('click',()=>document.body.classList.remove('nav-open'));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('nav-open')){document.body.classList.remove('nav-open');$('#nav-toggle').setAttribute('aria-expanded','false');$('#nav-toggle').focus();}});
 document.addEventListener('click',e=>{if(phone()&&e.target.closest('#nav [data-view], .brand'))document.body.classList.remove('nav-open');});
 window.addEventListener('resize',applyNav);applyNav();
 
@@ -991,6 +992,7 @@ buildDeck();
  let pos=scrollY,target=scrollY,running=false,last=0;
  const own=el=>{for(;el&&el!==document.body;el=el.parentElement){if(el.nodeType!==1)continue;const y=getComputedStyle(el).overflowY;if((y==='auto'||y==='scroll')&&el.scrollHeight>el.clientHeight+1)return true;}return false;};
  const step=now=>{
+  if(!running)return;
   const dt=last?Math.min(now-last,64):16.7;last=now;
   pos+=(target-pos)*(1-Math.pow(.89,dt/16.7));
   if(Math.abs(target-pos)<.5){pos=target;running=false;last=0;}
@@ -1004,6 +1006,7 @@ buildDeck();
   target=Math.max(0,Math.min(document.documentElement.scrollHeight-innerHeight,target+d));
   if(!running){running=true;requestAnimationFrame(step);}
  },{passive:false});
+ for(const t of ['pointerdown','keydown','hashchange'])addEventListener(t,()=>{running=false;last=0;},true);
  // keys, the scrollbar and links move the page directly; the glide starts again from there
  addEventListener('scroll',()=>{if(!running)pos=target=scrollY;},{passive:true});
 })();
