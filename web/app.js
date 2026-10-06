@@ -93,7 +93,7 @@ async function readStream(response,onEvent){
 }
 function title(name,subtitle,action=''){return `<div class="page-title"><div><h2>${esc(name)}</h2><p>${esc(subtitle)}</p></div>${action}</div>`;}
 // Two faces: the public introduction for guests, the reviewing desk once signed in.
-function setMode(mode){document.body.dataset.mode=mode;if(mode==='landing')document.title='مَنْهَج | مراجعة الشبهات';}
+function setMode(mode){document.body.dataset.mode=mode;if(mode==='landing')document.title='مَنْهَج | مراجعة الشبهات';dispatchEvent(new Event('scroll'));}
 async function init(){
  if(titles[location.hash.slice(1)])view=location.hash.slice(1);
  if(!token){setMode('landing');return;}
@@ -948,7 +948,7 @@ function immerse(){
  const clamp=v=>Math.min(1,Math.max(0,v)),ease=t=>t<.5?4*t*t*t:1-(-2*t+2)**3/2;
  let queued=false;
  const frame=()=>{
-  queued=false;if(document.body.dataset.mode!=='landing')return;
+  queued=false;if(document.body.dataset.mode!=='landing'){document.body.classList.remove('immersed');return;}
   const r=scroll.getBoundingClientRect(),vh=innerHeight,run=r.height-vh,pin=-r.top;
   // opening: from just before the stage reaches the top to a third of the way through; closing: the last stretch
   const e=ease(clamp((pin+.3*vh)/(.3*vh+.3*run))),x=ease(clamp((pin-run+.35*vh)/(.35*vh)));
