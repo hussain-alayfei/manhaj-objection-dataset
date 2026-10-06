@@ -6,4 +6,6 @@ Generated for this project with the Slide Assets MCP (OpenAI image model) on 202
 - `girih-banner.webp`, `girih-strip.webp`: gold girih pattern on deep green (overview panel, login strip).
 - `book-cover.webp`: green leather manuscript binding with a gold-tooled shamsa (source cover).
 
+- `tour-ground-2560.webp`, `tour-ground-1280.webp` (2026-10-07): soft daylight through a sheer curtain, pale sage and ivory, high key (the landing tour and the closing invitation).
+
 No text or figures appear in any image.
