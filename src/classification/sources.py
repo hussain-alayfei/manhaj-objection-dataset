@@ -155,7 +155,12 @@ def _muslim_entries(number):
 def check_hadith(ref):
     collection, number, quote = ref.get('collection'), int(ref.get('number') or 0), ref.get('quote', '')
     if collection not in COLLECTIONS or number <= 0:
-        return {'state': 'unchecked', 'label': 'لم يُتحقق آليًا', 'detail': 'لم يُذكر له كتاب ورقم يمكن الرجوع إليهما؛ يحتاج تخريجًا من المختص.'}
+        from .library import find_hadith  # no number to check: look for the wording in the Shamela collections instead
+        hit = find_hadith(quote)
+        if hit:
+            where = f"{hit['book']}، ج{hit['vol']} ص{hit['page']}" if hit['vol'] else f"{hit['book']}، ص{hit['page']}"
+            return {'state': 'verified', 'label': 'وُجد في المكتبة الشاملة', 'reference': where, 'url': hit['url'], 'grades': []}
+        return {'state': 'unchecked', 'label': 'لم يُتحقق آليًا', 'detail': 'لم يُذكر له كتاب ورقم، ولم يُعثر على لفظه في المكتبة الشاملة؛ يحتاج تخريجًا من المختص.'}
     entries = _muslim_entries(number) if collection == 'muslim' else _hadith_json(f'editions/ara-{collection}1/{number}.json').get('hadiths', [])
     best = max(entries, key=lambda h: coverage(quote, h.get('text', '')), default=None)
     name = COLLECTIONS[collection]

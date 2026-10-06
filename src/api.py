@@ -119,6 +119,7 @@ def client_key(request):
 class DiagnoseRequest(BaseModel):
     text: str = Field(min_length=1, max_length=12000)
     include_drafts: bool = False
+    deep_search: bool = False  # the model may search a few trusted sites: slower, and counts as two analyses
 
 
 class BenchmarkRequest(BaseModel):
@@ -515,7 +516,8 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
             return {'source_id': src['id'], 'candidate_count': run['new_records']}
         finally: path.unlink(missing_ok=True)
 
-    def reserve_diagnosis(actor):
+    def reserve_diagnosis(actor, deep=False):
+        if deep: reserve_diagnosis(actor)
         if (daily_limit or overall_limit) and not read_only:
             day_start = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
             if not store.reserve_usage('diagnose', actor, day_start, daily_limit, overall_limit):
@@ -523,18 +525,18 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.post('/api/diagnose')
     def diagnosis(request: DiagnoseRequest, actor=Depends(identity)):
-        reserve_diagnosis(actor)
-        return diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only)
+        reserve_diagnosis(actor, request.deep_search)
+        return diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only, deep_search=request.deep_search)
 
     @app.post('/api/diagnose/stream')
     def diagnosis_stream(request: DiagnoseRequest, actor=Depends(identity)):
         """The same analysis, reported step by step as newline-delimited JSON while it is written."""
-        reserve_diagnosis(actor)
+        reserve_diagnosis(actor, request.deep_search)
         events = queue.Queue()
 
         def work():
             try:
-                result = diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only,
+                result = diagnose(store, request.text, include_drafts=request.include_drafts, requested_by=actor, persist=not read_only, deep_search=request.deep_search,
                                   progress=lambda kind, **data: events.put({'type': kind, **data}))
                 events.put({'type': 'result', 'data': result})
             except ValueError as error:
