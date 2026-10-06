@@ -382,13 +382,24 @@ async function analyzeView(){
  <section class="my-history" id="my-history"><div class="h-head"><div><h3>سجل تحليلاتك</h3><span class="muted" id="history-count"></span></div><div class="h-tools" id="history-tools" hidden><button type="button" class="quiet" data-select="start">تحديد</button><span class="h-select-tools"><label class="check"><input type="checkbox" id="pick-all">تحديد الكل</label><button type="button" class="danger" data-select="delete" disabled>حذف</button><button type="button" class="quiet" data-select="done">إلغاء</button></span></div></div><div id="history-list">${loaderHtml('جارٍ تحميل السجل')}</div><button type="button" id="history-more" class="more-btn" hidden>عرض المزيد</button></section>`;
  try{await refreshHistory();}catch(err){if(!stale(seq))$('#history-list').innerHTML=`<p class="muted">${esc(err.message)}</p>`;}
 }
+// Tabs that open only after expert review say so plainly, with the progress so far and the next step.
+function gateHtml({heading,why,steps,s}){
+ const approvedObjections=s.objections_approved??0,approvedRules=s.rules_approved??0;
+ return `<section class="gate"><h3>${heading}</h3><p>${why}</p><ol>${steps.map(x=>`<li>${x}</li>`).join('')}</ol>
+  <div class="gate-progress"><div><strong>${num(s.approved||0)}</strong><span>سجل معتمد</span></div><div><strong>${num(s.pending||0)}</strong><span>بانتظار المراجعة</span></div><div><strong>${num(approvedRules)}</strong><span>قاعدة معتمدة</span></div></div>
+  <button class="primary" data-go="review">ابدأ المراجعة</button></section>`;
+}
 async function recordsView(){
  const seq=renderSeq;
  const chosen=status===null?(view==='review'?'needs_review':''):status;
  const data=await api(recordsPath(view,offset,query,chosen));
  if(!data.items.length&&offset>0&&offset>=data.total){offset=Math.max(0,Math.ceil(data.total/30)*30-30);return render();}
  let extra='';
- if(view==='external')extra=!caps.heavy_jobs?'<p class="lead-note">يضيفها مسؤول المشروع من مصادر موثوقة، وتظهر هنا لتراجعها.</p>':`<div class="banner">يبدأ جمع الشبهات من مصادر أخرى بعد إنهاء مراجعة الكتاب كاملًا، وكل نتيجة تدخل قائمة المراجعة.</div><details class="card spaced"><summary>البحث في المصادر المسموح بها</summary><form id="research-form"><label for="research-topic">الموضوع</label><input id="research-topic" required><label for="research-limit">أقصى عدد من النتائج</label><input id="research-limit" type="number" min="1" max="50" value="5"><button class="primary spaced">ابحث</button></form><form id="gate-form"><label class="check"><input id="coverage-check" type="checkbox" required>أشهد بأن مراجعة جميع شبهات الكتاب وقواعده اكتملت.</label><label for="coverage-notes">ملاحظات المراجعة</label><textarea id="coverage-notes" required></textarea><button class="spaced">توثيق اكتمال مراجعة الكتاب</button></form></details>`;
+ if(view==='external'&&!data.total&&!query&&!chosen){const s=await api('/summary');if(stale(seq))return;extra=gateHtml({s,heading:'شبهات من مواقع موثوقة خارج الكتاب',
+  why:'تُجمع هنا شبهات شائعة من مواقع موثوقة، وتُحلَّل بمنهج الكتاب وتدخل المراجعة. ولا يبدأ جمعها قبل أن تُحكم شبهات الكتاب نفسه، لأنها الأساس الذي تُقاس عليه.',
+  steps:['يراجع المختصون شبهات الكتاب وقواعده ويعتمدون الصحيح منها.','يوثّق المسؤول اكتمال مراجعة الكتاب.','تُراجَع حقوق كل موقع قبل جمع نصوصه، ثم يبدأ الجمع.'],})+'<p class="lead-note">وإلى ذلك الحين يستعين كل تحليل بالمكتبة الشاملة وبمواقع موثوقة على الإنترنت.</p>';
+  $('#content').dataset.view=view;$('#content').innerHTML=title(titles[view],'لم تُضف شبهات من خارج الكتاب بعد.')+extra;return;}
+ else if(view==='external')extra=!caps.heavy_jobs?'<p class="lead-note">يضيفها مسؤول المشروع من مصادر موثوقة، وتظهر هنا لتراجعها.</p>':`<div class="banner">يبدأ جمع الشبهات من مصادر أخرى بعد إنهاء مراجعة الكتاب كاملًا، وكل نتيجة تدخل قائمة المراجعة.</div><details class="card spaced"><summary>البحث في المصادر المسموح بها</summary><form id="research-form"><label for="research-topic">الموضوع</label><input id="research-topic" required><label for="research-limit">أقصى عدد من النتائج</label><input id="research-limit" type="number" min="1" max="50" value="5"><button class="primary spaced">ابحث</button></form><form id="gate-form"><label class="check"><input id="coverage-check" type="checkbox" required>أشهد بأن مراجعة جميع شبهات الكتاب وقواعده اكتملت.</label><label for="coverage-notes">ملاحظات المراجعة</label><textarea id="coverage-notes" required></textarea><button class="spaced">توثيق اكتمال مراجعة الكتاب</button></form></details>`;
  const actions=!caps.heavy_jobs?'':view==='families'?'<button data-action="families">اقترح مجموعات متشابهة</button>':view==='objections'?'<button data-action="duplicates">ابحث عن المكرر</button>':'';
  if(stale(seq))return;
  // Searching and paging refresh only the table, so the search box keeps focus while typing.
@@ -423,16 +434,22 @@ async function sourcesView(){
 }
 async function evaluationView(){
  const seq=renderSeq;
- const [manifests,runs]=await Promise.all([api('/documents/dataset_manifests'),api('/documents/evaluation_runs')]);
+ const [manifests,runs,s]=await Promise.all([api('/documents/dataset_manifests'),api('/documents/evaluation_runs'),api('/summary')]);
  if(stale(seq))return;
+ if(!manifests.length&&!runs.length&&!s.approved){$('#content').innerHTML=title('التقييم','نختبر دقة التحليل على حالات معتمدة لم يرها النظام من قبل.')+gateHtml({s,heading:'يبدأ التقييم بعد اعتماد الحالات',
+  why:'يقيس التقييم دقة التحليل بمقارنته بحالات اعتمدها المختصون ولم يرها النظام. ولا يصح قياسه على حالات لم يراجعها أحد.',
+  steps:['يعتمد المختصون عشرين شبهة على الأقل وخمس قواعد من الكتاب.','تُختار منها مجموعة اختبار تُحجب عن التحليل.','يُحلَّل كل اختبار ويُقارن بالجواب المعتمد، فتظهر النتائج هنا.']});return;}
  $('#content').innerHTML=title('التقييم','نختبر دقة التحليل على حالات معتمدة لم يرها النظام من قبل.')+`<div class="two-col"><section class="card"><h3>إنشاء مجموعة اختبار</h3><form id="benchmark-form"><label for="test-ids">أرقام حالات الاختبار المعتمدة (سطر لكل حالة)</label><textarea id="test-ids" required dir="ltr"></textarea><label for="validation-ids">أرقام حالات التحقق (اختياري)</label><textarea id="validation-ids" dir="ltr"></textarea><button class="primary spaced">حفظ المجموعة</button></form></section><section class="card"><h3>المجموعات المحفوظة</h3>${manifests.map(m=>`<div class="row"><div><small>${esc(when(m.payload.created_at))}</small><p>تدريب ${num(m.payload.training_ids.length)}، تحقق ${num(m.payload.validation_ids.length)}، اختبار ${num(m.payload.test_ids.length)}</p></div></div>`).join('')||'<div class="empty">لا توجد مجموعات بعد.</div>'}</section></div><section class="card spaced"><h3>نتائج التقييم</h3>${runs.map(r=>`<details><summary>تقييم ${esc(when(r.payload.at))}</summary>${metricsTable(r.payload.metrics)}</details>`).join('')||'<div class="empty">لم يُجرَ تقييم بعد.</div>'}</section>`;
 }
 const metricNames={primary_pattern_accuracy:'دقة التشخيص الرئيس',sub_pattern_accuracy:'دقة تفصيل التشخيص',human_review_trigger_accuracy:'دقة طلب مراجعة المختص',duplicate_family_detection_accuracy:'دقة كشف الشبهات المتشابهة',central_claim_accuracy:'دقة تحرير الدعوى',objection_decomposition_accuracy:'دقة تفكيك الشبهة',source_grounding_accuracy:'الاستناد إلى نص الكتاب',citation_accuracy:'دقة الإحالة إلى الصفحات',unsupported_diagnosis_rate:'نسبة التشخيص غير المؤسس'};
 const metricsTable=m=>`<table class="metrics-table"><tbody>${Object.entries(m||{}).map(([k,v])=>`<tr><th>${esc(metricNames[k]||k)}</th><td>${v.value==null?'لم يُقس بعد':num(Math.round(v.value*100))+'%'}</td><td class="muted">${v.rated_count?arCount(v.rated_count,['حالة واحدة','حالتان','حالات','حالةً','حالة']):''}</td></tr>`).join('')}</tbody></table>`;
 async function exportView(){
  const seq=renderSeq;
- const [manifests,exports]=await Promise.all([api('/documents/dataset_manifests'),api('/documents/training_exports')]);
+ const [manifests,exports,s]=await Promise.all([api('/documents/dataset_manifests'),api('/documents/training_exports'),api('/summary')]);
  if(stale(seq))return;
+ if(!manifests.length&&!exports.length&&!s.approved){$('#content').innerHTML=title('تصدير البيانات','تُصدَّر الحالات المعتمدة فقط، وتُستبعد حالات الاختبار.')+gateHtml({s,heading:'يُتاح التصدير بعد الاعتماد',
+  why:'التصدير يخرج الحالات المعتمدة وحدها، بنصوصها وتشخيصها ومصادرها، لتُستعمل في تدريب النماذج أو في النشر. ولم يُعتمد بعد شيء يصلح للتصدير.',
+  steps:['يعتمد المختصون الشبهات والقواعد بعد مراجعتها.','تُحفظ مجموعة اختبار في صفحة التقييم.','ينزّل المسؤول ملف التدريب أو كل السجلات المعتمدة من هنا.']});return;}
  $('#content').innerHTML=title('تصدير البيانات','تُصدَّر الحالات المعتمدة فقط، وتُستبعد حالات الاختبار.')+`<div class="two-col"><section class="card"><h3>ملف التدريب</h3><form id="export-form"><label for="manifest">مجموعة البيانات</label><select id="manifest" required><option value="">اختر مجموعة</option>${manifests.map(m=>`<option value="${esc(m.id)}">مجموعة ${esc(when(m.payload.created_at))} (${num(m.payload.training_ids.length)} حالة تدريب)</option>`).join('')}</select><button class="primary spaced">تنزيل ملف التدريب</button></form><button data-action="json-export" class="spaced">تنزيل كل السجلات المعتمدة</button></section><section class="card"><h3>عمليات التصدير السابقة</h3>${exports.map(x=>`<div class="row"><div><small>${esc(new Date(x.payload.at).toLocaleString('ar-u-nu-latn'))}</small><p>${num(x.payload.records_count??0)} حالة</p></div></div>`).join('')||'<div class="empty">لا توجد عمليات تصدير.</div>'}</section></div>`;
 }
 
