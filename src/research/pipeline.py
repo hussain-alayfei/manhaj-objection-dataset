@@ -141,7 +141,7 @@ def research_common_objections(topic, limit, store=None, registry_path='config/e
                             c.execute(insert(sources).values(id=sid, sha256=digest([url, wording]), payload=src))
                             c.execute(insert(chunks).values(id=cid, source_id=sid, page_number=None, section='', text=wording, raw_text=wording, payload={'retrieved_at': retrieved}))
                     cit = citation(src, [(0, len(wording), {'id': cid, 'page_number': None, 'text': wording})], 0, len(wording))
-                    proposal = diagnose(store, wording, analyst=analyst)
+                    proposal = diagnose(store, wording, analyst=analyst, deep_search=False)  # batch jobs skip the paid web search
                     r = Record(id='SHB-' + digest([sid, wording])[:12], kind='objection', title_ar=wording[:90], objection_text_ar=wording, normalized_objection_ar=key, source=cit, source_evidence={'wording_type': 'verbatim_excerpt', 'rights': src['rights'], 'retrieved_at': retrieved}, ai_analysis=proposal, evidence_status='analytical_inference', evidence_label_ar='استنتاج تحليلي', phase=2, tags=[topic, 'external_candidate'], **proposal['analysis']).model_dump()
                     with store.transaction() as c:
                         require_phase_two(store, c)
