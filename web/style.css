@@ -45,16 +45,23 @@ small{font-size:12.5px}
 a{color:var(--green)}
 :focus-visible{outline:2px solid var(--green-2);outline-offset:2px}
 
-/* Controls */
-button{cursor:pointer;min-height:40px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 16px;background:var(--surface);color:var(--ink);transition:background-color var(--fade),border-color var(--fade),color var(--fade),opacity var(--fade)}
-button:hover{border-color:var(--green);background:#f0f5ef}
+/* Controls, drawn from the book rather than a component kit.
+   The main action is bottle-green leather with a gold rule tooled just inside its edge; the second is paper with an
+   ink edge; the quiet one is a word with a gold underline. Corners follow the role, and a press sinks a pixel. */
+button{cursor:pointer;min-height:40px;border:1px solid #c9d2c8;border-radius:7px;padding:8px 18px;background:#fffefa;color:var(--ink);font-weight:600;
+  transition:background-color var(--fade),border-color var(--fade),color var(--fade),box-shadow var(--fade),opacity var(--fade),transform .12s ease}
+button:hover{border-color:var(--green);background:#f3f5ee}
+button:not([class]):active:not(:disabled),.primary:active:not(:disabled),.outline:active:not(:disabled),.danger:active:not(:disabled){transform:translateY(1px)}
 button:disabled{opacity:.55;cursor:wait}
-.primary{background:var(--green);color:#fff;border-color:var(--green)}
-.primary:hover{background:var(--green-2);border-color:var(--green-2);color:#fff}
-.danger{color:var(--red)}
+.primary{background:var(--green);color:#fdfbf3;border-color:var(--green);box-shadow:inset 0 0 0 2px var(--green),inset 0 0 0 3px #e7cf9f2e,0 1px 2px #06392a24}
+.primary:hover{background:#0f4134;border-color:#0f4134;color:#fff;box-shadow:inset 0 0 0 2px #0f4134,inset 0 0 0 3px #e7cf9f6b,0 1px 2px #06392a24}
+.primary:active:not(:disabled){box-shadow:inset 0 0 0 2px #0b382c,inset 0 0 0 3px #e7cf9f59}
+.primary:focus-visible{outline-color:var(--gold)}
+.danger{color:var(--red);border-color:#e3c6c1}
 .danger:hover{border-color:var(--red);background:var(--red-tint)}
-.quiet{border:0;min-height:0;background:transparent;padding:4px 0;color:var(--green)}
-.quiet:hover{background:transparent;text-decoration:underline}
+.quiet{border:0;min-height:0;border-radius:4px;background:transparent;padding:4px 0;color:var(--green);font-weight:600;
+  text-decoration:underline;text-decoration-color:#aa834866;text-decoration-thickness:1px;text-underline-offset:6px}
+.quiet:hover{background:transparent;text-decoration-color:var(--gold)}
 input[type=search]{-webkit-appearance:none;appearance:none}
 input,select,textarea{border:1px solid #d3dbd1;border-radius:8px;background:#fff;padding:10px 12px;width:100%;color:var(--ink);transition:border-color var(--fade),box-shadow var(--fade)}
 textarea{min-height:90px;resize:vertical;line-height:1.9}
@@ -69,7 +76,7 @@ details[open]>*:not(summary){animation:fade-in .25s ease-out both}
 .brand img{width:46px;height:46px;flex:none}
 .brand h1{font-family:var(--ruqaa);font-weight:700;font-size:36px;line-height:1;padding-top:.5em;color:var(--green)}
 nav{display:grid;gap:6px}
-nav button{border:0;border-radius:var(--radius);background:transparent;text-align:right;padding:10px 14px;color:#4b5a54;font-size:14px}
+nav button{border:0;border-radius:var(--radius);background:transparent;text-align:right;padding:10px 14px;color:#4b5a54;font-size:14px;font-weight:400}
 nav button:hover{background:#f2f5f0;color:var(--ink)}
 nav button span{display:inline-block;width:26px;color:#81968a;transition:color var(--fade)}
 nav button span svg{vertical-align:-4px}
@@ -143,7 +150,8 @@ td{padding:16px 14px;border-top:1px solid var(--line);vertical-align:top;transit
 tbody tr:hover td{background:#fafbf8}
 td:first-child{min-width:250px;font-family:var(--naskh);font-size:16px;line-height:1.8}
 td small{display:block;font-family:var(--ui);font-size:11.5px}
-td button{min-height:34px;padding:4px 12px;font-size:12.5px}
+td button{min-height:32px;padding:4px 14px;font-size:13px;border-color:transparent;border-radius:6px;background:#164b3d0f;color:var(--green)}
+td button:hover{border-color:transparent;background:#164b3d1f}
 .empty{text-align:center;padding:48px;color:var(--muted)}
 .pagination{display:flex;align-items:center;justify-content:space-between;padding-top:16px;font-size:13px}
 
@@ -174,7 +182,7 @@ dialog.alert::backdrop{background:#0000004d;backdrop-filter:none}
 .alert-body p{margin-top:6px;font-size:13px;line-height:1.6;color:#3a3a3c}
 .alert-body textarea{margin-top:12px;min-height:76px;font-size:13.5px;background:#fff;border-radius:10px}
 .alert-actions{display:grid;grid-template-columns:1fr 1fr;border-top:.5px solid #3c3c4333}
-.alert-actions button{border:0;border-radius:0;min-height:46px;background:transparent;font-size:15px;color:var(--green)}
+.alert-actions button{font-weight:400;border:0;border-radius:0;min-height:46px;background:transparent;font-size:15px;color:var(--green)}
 .alert-actions button:first-child{font-weight:600}
 .alert-actions button+button{border-inline-start:.5px solid #3c3c4333}
 .alert-actions button:hover{background:#0000000a}
@@ -374,8 +382,8 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
   .brand h1{font-size:30px}
   .brand img{width:38px;height:38px}
   main{margin-right:0;padding:0 16px 36px}
-  .sidebar{width:min(300px,86vw);transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);z-index:40;padding:22px 14px 16px}
-  body.nav-open .sidebar{transform:none;box-shadow:-24px 0 60px #0000002e}
+  .sidebar{width:min(300px,86vw);transform:translateX(100%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s;z-index:40;padding:22px 14px 16px}
+  body.nav-open .sidebar{transform:none;visibility:visible;transition-delay:0s;box-shadow:-24px 0 60px #0000002e}
   body.nav-open #nav-backdrop{display:block;position:fixed;inset:0;background:#0000004d;z-index:39}
   .method-band{margin:22px -16px 0;border-radius:0}
   .method-inner ol{grid-template-columns:1fr}
@@ -419,7 +427,7 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
 /* Account: chip in the sidebar, button in the header, one menu */
 .avatar-i{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#24614e,#164b3d);color:#f3ead6;font-weight:600;font-size:14px;line-height:1}
 .avatar-i.xl{width:64px;height:64px;font-size:26px}
-.account-chip{width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:12px;background:transparent;text-align:right;min-height:0}
+.account-chip{font-weight:400;width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:12px;background:transparent;text-align:right;min-height:0}
 .account-chip:hover{background:#f2f5f0}
 .account-text{flex:1;min-width:0;display:grid;line-height:1.4}
 .account-text b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -436,7 +444,7 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
 .menu-head b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .menu-head small{font-size:12px}
 .account-menu hr{border:0;border-top:.5px solid #3c3c4333;margin:4px 6px}
-.account-menu button{width:100%;display:flex;align-items:center;gap:10px;border:0;border-radius:9px;min-height:38px;padding:6px 10px;background:transparent;text-align:right;font-size:14px}
+.account-menu button{font-weight:400;width:100%;display:flex;align-items:center;gap:10px;border:0;border-radius:9px;min-height:38px;padding:6px 10px;background:transparent;text-align:right;font-size:14px}
 .account-menu button:hover,.account-menu button:focus-visible{background:#164b3d14;outline:0}
 .account-menu svg{color:var(--muted);flex:none}
 .account-menu .menu-danger,.account-menu .menu-danger svg{color:#c4271b}
@@ -482,7 +490,7 @@ dialog.profile{width:min(520px,94vw);max-height:90vh;border:0;border-radius:18px
 .empty-art{display:grid;justify-items:center;gap:10px;padding:24px 16px;text-align:center;color:var(--muted)}
 .empty-art img{width:min(280px,70%);height:auto}
 .feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px;font-size:13.5px;color:var(--muted)}
-.feedback button{min-height:32px;padding:4px 14px;border-radius:999px;font-size:13px}
+.feedback button{font-weight:400;min-height:32px;padding:4px 14px;border-radius:999px;font-size:13px}
 .feedback button.chosen{background:var(--green);border-color:var(--green);color:#fff}
 @media(max-width:760px){.analyze-cta{padding:22px;min-height:0;background:linear-gradient(#f6f3eaeb,#f6f3eaeb),url(/static/img/overview-analyze-1680.webp) left center/cover no-repeat}.stats strong{font-size:22px}.profile-head{padding:22px 18px 16px}.profile-body{padding:4px 18px 20px}}
 
@@ -867,7 +875,7 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 /* The path as a book's index: names with a thin margin mark; the place is said in words */
 .rail{list-style:none;margin:0;padding:6px 0;position:sticky;top:20px;border-inline-start:1px solid #dfe6df}
 .rail .st{position:relative}
-.rail button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:40px;padding:6px 14px;border:0;border-radius:0 10px 10px 0;background:transparent;text-align:right;color:#8a9790;font-size:14px;line-height:1.5;transition:background-color var(--fade),color var(--fade)}
+.rail button{font-weight:400;display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:40px;padding:6px 14px;border:0;border-radius:0 10px 10px 0;background:transparent;text-align:right;color:#8a9790;font-size:14px;line-height:1.5;transition:background-color var(--fade),color var(--fade)}
 .rail button::before{content:'';position:absolute;inset-block:8px;inset-inline-start:-2px;width:3px;border-radius:3px;background:transparent;transition:background-color .3s ease}
 .rail button:hover{background:#eff3ee;color:var(--ink)}
 .rail em{font-style:normal;font-size:12px;color:var(--green)}
@@ -965,8 +973,8 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .auth-card #auth-submit{border-radius:12px;min-height:48px;font-size:16px}
 
 /* Buttons with a quiet outline (header and closing invitation) */
-button.outline{background:#ffffffb3;border:1px solid #c9d4cb;color:var(--green-deep);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-button.outline:hover{background:#fff;border-color:var(--green)}
+button.outline{background:#fffefacc;border:1px solid #c9d2c8;color:var(--green-deep);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+button.outline:hover{background:#fffefa;border-color:var(--green)}
 
 /* Landing: the method as a scene the reader steps into. Scrolling to it opens its frame to the whole screen and draws
    the windows closer; the steps play one after another; scrolling on closes the frame and the page goes on.
