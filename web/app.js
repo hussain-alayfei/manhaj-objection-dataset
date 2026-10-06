@@ -219,6 +219,7 @@ function openAuth(mode){
  $('#name-field').hidden=!signup;$('#auth-name').required=signup;$('#pw-rules').hidden=!signup;
  document.querySelectorAll('#auth .field-error').forEach(n=>{n.hidden=true;n.previousElementSibling?.setAttribute('aria-invalid','false');});
  $('#auth-password').autocomplete=signup?'new-password':'current-password';
+ $('#auth-password').type='password';document.querySelector('[data-pw-toggle]').setAttribute('aria-pressed','false');
  $('#auth-submit').textContent=signup?'إنشاء الحساب':'دخول';
  $('#switch-text').textContent=signup?'لديك حساب؟':'ليس لديك حساب؟';$('#auth-switch').textContent=signup?'سجّل الدخول':'أنشئ حسابًا';
  $('#auth-error').hidden=true;
@@ -238,6 +239,8 @@ function fieldNote(input,message){let note=input.nextElementSibling;if(!note||!n
 $('#auth-email').addEventListener('blur',e=>{if(e.target.value.trim())fieldNote(e.target,emailProblem(e.target.value));});
 $('#auth-email').addEventListener('input',e=>{if(e.target.getAttribute('aria-invalid')==='true')fieldNote(e.target,emailProblem(e.target.value));});
 $('#auth-name').addEventListener('blur',e=>{if(e.target.value)fieldNote(e.target,nameProblem(e.target.value));});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-pw-toggle]');if(!b)return;const input=$('#auth-password'),shown=input.type==='password';
+ input.type=shown?'text':'password';b.setAttribute('aria-pressed',String(shown));b.setAttribute('aria-label',shown?'إخفاء كلمة المرور':'إظهار كلمة المرور');input.focus({preventScroll:true});});
 $('#auth-password').addEventListener('input',e=>{const c=passwordChecks(e.target.value);document.querySelectorAll('#pw-rules li').forEach(li=>li.classList.toggle('ok',c[li.dataset.rule]));});
 $('#auth-form').addEventListener('submit',async e=>{
  e.preventDefault();const error=$('#auth-error'),submit=$('#auth-submit');error.hidden=true;
@@ -891,38 +894,58 @@ const DEMO={input:'كيف يقول ﷺ: «سبعين خريفًا»، وفي ح�
   step8_tests:[{id:'H1',verdict:'مدعوم بالدليل',evidence:'كلام أهل اللغة في التكثير'},{id:'H2',verdict:'مرفوض',evidence:'الروايتان ثابتتان'},{id:'H3',verdict:'مرفوض',evidence:'لا تفريق في الحكم'},{id:'H4',verdict:'مدعوم بالدليل',evidence:'العدد للتكثير لا للحساب'},{id:'H5',verdict:'مرفوض',evidence:'العددان مختلفان فعلًا'},{id:'H6',verdict:'محتمل',evidence:'يُعرض مع غيره'}],
   step9_map:{objection:'تعارض «سبعين خريفًا» و«مائة عام»',hidden_assumption:'العددان يُقارنان حسابيًا',fault:'جمعٌ بين مختلفين',evidence:'دلالة العدد على التكثير',rule:'الشريعة لا تجمع بين المختلفات',resolution:'العددان للتكثير فلا تعارض',conclusion:'لا تناقض بين الحديثين'},
   step11_answer:{summary:'تعارضٌ ظاهري بين «سبعين خريفًا» و«مائة عام»',origin:'مقارنة حسابية بين عدد يُراد به التكثير وعدد آخر',dismantling:[{step:'التعارض مبني على قراءة العددين قراءة حسابية',evidence:'لفظ الحديثين'},{step:'الروايتان ثابتتان في مصادرهما',evidence:'البخاري (2840) والنسائي (2254)'},{step:'العدد في لغة العرب يُذكر للتكثير',evidence:'كلام أهل اللغة وشُرّاح الحديث'}],sources:['صحيح البخاري','صحيح مسلم','سنن النسائي','فتح الباري'],disagreement:'',revealing_question:'هل يلزم من ذكر عددين للتكثير أن يكون أحدهما خطأً؟',confidence:.7,confidence_label:'توجيه معتبر غير قطعي'}}};
-let deckAt=0;
+// Landing: the method as a short guided tour. One window at a time in the middle, the step's name above it;
+// it moves on by itself like a video (a bar fills under each step), and the reader can pause, step back or skip.
+let deckAt=0,tourPlaying=true,tourHeld=false,tourSeen=false;
+const PLAY_ICON='<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>',PAUSE_ICON='<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><rect width="5" height="18" x="14" y="3" rx="1"/><rect width="5" height="18" x="5" y="3" rx="1"/></g></svg>';
 function deckWindow(s,k){
  const body=s.key==='review'?reviewHtml(DEMO):STEP_VIEWS[s.key](DEMO.steps[s.key],DEMO);
- return `<article class="win" data-win="${k}" aria-label="${s.name}"><div class="win-bar"><span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span><b>${s.name}</b><span class="win-tag">مثال توضيحي</span></div><div class="win-body"><header class="panel-head"><small class="panel-ord">${s.ord}</small><h3>${s.name}</h3><p>${esc(s.tag)}</p></header>${body}</div></article>`;
+ return `<article class="win" data-win="${k}" aria-label="${s.name}"><div class="win-bar"><span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span><b>${s.name}</b><span class="win-tag">مثال توضيحي</span></div><div class="win-body">${body}</div></article>`;
 }
 function showDeck(index){
  const deck=$('#deck');if(!deck)return;
- deckAt=Math.min(STEPS.length-1,Math.max(0,index));
+ deckAt=(index+STEPS.length)%STEPS.length;
  deck.querySelectorAll('.win').forEach(w=>{
   const rel=Number(w.dataset.win)-deckAt,d=-rel;
-  // the open window on top; those already seen stacked behind it; the rest wait below, unseen
-  w.style.transform=rel===0?'none':rel<0?`translateY(${-Math.min(d,3)*15}px) scale(${1-Math.min(d,3)*.045})`:'translateY(64px) scale(.97)';
-  w.style.opacity=rel===0?'1':rel<0?(d>3?'0':String(1-d*.12)):'0';
+  // the open window on top; the two seen before it peek out behind; the rest wait below, unseen
+  w.style.transform=rel===0?'none':rel<0?`translateY(${-Math.min(d,2)*16}px) scale(${1-Math.min(d,2)*.04})`:'translateY(48px) scale(.98)';
+  w.style.opacity=rel===0?'1':rel<0&&d<=2?'1':'0';
   w.style.zIndex=rel>0?'31':String(30-Math.min(d,30));
   w.classList.toggle('behind',rel<0);w.toggleAttribute('inert',rel!==0);w.setAttribute('aria-hidden',String(rel!==0));
-  if(rel===0)w.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
+  if(rel===0){w.querySelector('.win-body').scrollTop=0;w.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});}
  });
- const list=$('.way');
- list.querySelectorAll('li').forEach((li,k)=>{li.classList.toggle('on',k===deckAt);li.classList.toggle('done',k<deckAt);li.querySelector('button').setAttribute('aria-current',k===deckAt?'step':'false');});
- const li=list.children[deckAt];list.style.setProperty('--fill',Math.max(0,li.offsetTop+3)+'px');
- $('#deck-count').innerHTML=`<b>${STEPS[deckAt].name}</b><small>الخطوة ${deckAt+1} من ${STEPS.length}</small>`;
- const [prev,next]=document.querySelectorAll('[data-deck]');prev.disabled=deckAt===0;next.textContent=deckAt===STEPS.length-1?'من البداية':'التالي';
+ const s=STEPS[deckAt];
+ $('#tour-ord').textContent=s.ord;$('#tour-title').textContent=s.name;$('#tour-tag').textContent=s.tag;
+ $('#tour-count').textContent=`${deckAt+1} من ${STEPS.length}`;
+ $('#tour-progress').innerHTML=STEPS.map((x,k)=>`<button type="button" class="seg${k<deckAt?' done':k===deckAt?' now':''}" data-seg="${k}" aria-label="${x.name}"><i></i></button>`).join('');
+ const fill=$('#tour-progress .now i');if(fill)fill.addEventListener('animationend',()=>{if(tourPlaying&&!tourHeld)showDeck(deckAt+1);},{once:true});
+}
+function setTour(playing){
+ tourPlaying=playing;const t=$('#tour'),b=$('[data-tour=play]');if(!t)return;
+ t.classList.toggle('paused',!playing);b.innerHTML=playing?PAUSE_ICON:PLAY_ICON;b.setAttribute('aria-label',playing?'إيقاف العرض':'تشغيل العرض');
 }
 function buildDeck(){
  const deck=$('#deck');if(!deck)return;
- deck.innerHTML=STEPS.map(deckWindow).join('');$('.way').classList.add('interactive');showDeck(0);
- document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-way],[data-deck]');if(!b)return;
-  if(b.dataset.way!==undefined)showDeck(Number(b.dataset.way));
-  else showDeck(deckAt===STEPS.length-1&&b.dataset.deck==='1'?0:deckAt+Number(b.dataset.deck));
+ deck.innerHTML=STEPS.map(deckWindow).join('');
+ const tour=$('#tour');
+ // nothing plays by itself for readers who prefer reduced motion, or until the tour is in view
+ setTour(!calm());tour.classList.add('waiting');showDeck(0);
+ if('IntersectionObserver' in window)new IntersectionObserver(([e])=>{tour.classList.toggle('waiting',!e.isIntersecting);if(e.isIntersecting&&!tourSeen){tourSeen=true;showDeck(0);}},{threshold:.35}).observe(tour);
+ else tour.classList.remove('waiting');
+ tour.addEventListener('click',e=>{
+  const b=e.target.closest('[data-tour],[data-seg]');if(!b)return;
+  if(b.dataset.seg!==undefined)showDeck(Number(b.dataset.seg));
+  else if(b.dataset.tour==='play')setTour(!tourPlaying);
+  else showDeck(deckAt+(b.dataset.tour==='next'?1:-1));
  });
- $('.land-way').addEventListener('keydown',e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;if(e.target.closest('input, textarea'))return;e.preventDefault();showDeck(deckAt+(e.key==='ArrowLeft'?1:-1));});
+ // reading inside the window holds the tour; leaving it lets it go on
+ deck.addEventListener('pointerenter',()=>{tourHeld=true;tour.classList.add('held');});
+ deck.addEventListener('pointerleave',()=>{tourHeld=false;tour.classList.remove('held');});
+ tour.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();showDeck(deckAt+(e.key==='ArrowLeft'?1:-1));}
+  if(e.key===' '&&e.target.closest('.tour-bar')){e.preventDefault();setTour(!tourPlaying);}
+ });
+ document.addEventListener('visibilitychange',()=>tour.classList.toggle('waiting',document.hidden));
 }
 buildDeck();
 init();
