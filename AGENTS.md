@@ -135,6 +135,8 @@ uvicorn src.asgi:app --host 127.0.0.1 --port 8000
 - Same-step updates swap only the changed parts (`partHtml`); the step list is synced in place (`syncTrail`), never rebuilt with `innerHTML`, so nothing flickers.
 - Never leave a `transform` (including an animation that fills forwards) on an ancestor of fixed drawers or popovers: it becomes their containing block and they move with the page.
 - Threads cross-fade when switching analyses; list items animate in and out. A global `prefers-reduced-motion` rule disables animations; keep new motion compatible with it.
+- One message style: `notify()` banners and `confirmBox()` alerts share the same frosted card (`.alert-body`, `.alert-actions`, hairline, «حسنًا» or Cancel/action). The owner asked for every message to look like that alert. Never use the browser's native `alert()`/`confirm()`.
+- On the first screen of «حلّل شبهة» the desk image (`.chat::before`) lies under the whole workspace, list included; the list is a floating frosted-glass pane (rail when folded) so no plain strip is left beside the image. A control must sit on the same side as the thing it moves (owner rule).
 
 ## Testing the UI without the Python server
 
