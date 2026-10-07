@@ -47,13 +47,13 @@ def asset_version(path):
 
 
 class CompressExceptStreams:
-    """Gzip for every response except the live analysis, whose small updates must reach the page as they happen."""
+    """Gzip for every response except the live streams (the analysis and the answers about it), whose small updates must reach the page as they happen."""
 
     def __init__(self, app):
         self.app, self.gzip = app, GZipMiddleware(app, minimum_size=1024)
 
     async def __call__(self, scope, receive, send):
-        if scope['type'] == 'http' and scope['path'] == '/api/diagnose/stream': return await self.app(scope, receive, send)
+        if scope['type'] == 'http' and (scope['path'] == '/api/diagnose/stream' or scope['path'].endswith('/ask')): return await self.app(scope, receive, send)
         return await self.gzip(scope, receive, send)
 
 
@@ -70,6 +70,11 @@ class SignupRequest(BaseModel):
 class BulkDeleteRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     ids: list[Annotated[str, Field(max_length=80)]] = Field(min_length=1, max_length=100)
+
+
+class AskRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    question: str = Field(min_length=1, max_length=2000)
 
 
 class FeedbackRequest(BaseModel):
@@ -198,6 +203,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     store.register_reviewers([*token_map, *([PUBLIC_REVIEWER] if public_access else [])])
     daily_limit = int(os.getenv('DIAGNOSE_DAILY_LIMIT', '0') or 0)
     overall_limit = int(os.getenv('DIAGNOSE_GLOBAL_DAILY_LIMIT', '0') or 0)  # all accounts together (OpenAI spend)
+    ask_limit = int(os.getenv('ASK_DAILY_LIMIT', '60') or 0)  # questions about an analysis, per account
     # Accounts: anyone may sign up as a reviewer. Project-wide actions (exports, benchmarks, phase gates,
     # index rebuilds) stay with operator tokens and with accounts listed in ADMIN_EMAILS.
     signup_open = os.getenv('SIGNUP_ENABLED', '1').strip().lower() not in ('0', 'false', 'no')
@@ -343,6 +349,45 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
     @app.post('/api/diagnoses/{did}/feedback')
     def diagnosis_feedback(did: str, body: FeedbackRequest, actor=Depends(reviewer)):
         return store.diagnosis_feedback(actor, did, body.verdict, body.note.strip())
+
+    @app.post('/api/diagnoses/{did}/ask')
+    def ask_about_diagnosis(did: str, body: AskRequest, actor=Depends(reviewer)):
+        """A question about one of the reader's own analyses, answered from that analysis and streamed as it is written."""
+        from .classification import followup
+        question = body.question.strip()
+        if not question: raise ValueError('Question is empty')
+        diagnosis = store.my_diagnosis(actor, did)
+        if not diagnosis.get('method'): raise HTTPException(409, 'لا يمكن السؤال عن تحليل لم يكتمل.')
+        if len(diagnosis.get('conversation') or []) >= followup.MAX_TURNS: raise HTTPException(409, 'بلغت هذه المحادثة حدها من الأسئلة. ابدأ تحليلًا جديدًا.')
+        if llm_provider() != 'openai': raise HTTPException(503, 'خدمة الأسئلة غير مفعّلة على الخادم.')
+        if ask_limit and not read_only:
+            day_start = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+            if not store.reserve_usage('ask', actor, day_start, ask_limit): raise HTTPException(429, 'بلغت الحد اليومي للأسئلة. يتجدد غدًا.')
+        events = queue.Queue()
+
+        def work():
+            try:
+                text = followup.answer(diagnosis, question, on_delta=lambda part: events.put({'type': 'delta', 'text': part}))
+                turn = store.add_followup(actor, did, question, text)
+                events.put({'type': 'result', 'data': turn})
+            except ValueError as error:
+                detail = 'لم يُعرض الجواب لأنه خرج عن حدود البيان.' if str(error) == 'safety_gate' else 'تعذّر الجواب الآن. حاول مرة أخرى بعد قليل.'
+                log.warning('follow-up failed: %s', error)
+                events.put({'type': 'error', 'detail': detail})
+            except Exception:
+                log.exception('follow-up failed')
+                events.put({'type': 'error', 'detail': 'تعذّر الجواب الآن. حاول مرة أخرى بعد قليل.'})
+
+        threading.Thread(target=work, daemon=True).start()
+
+        def lines():
+            while True:
+                try: event = events.get(timeout=10)
+                except queue.Empty: event = {'type': 'ping'}
+                yield json.dumps(event, ensure_ascii=False) + '\n'
+                if event['type'] in ('result', 'error'): return
+
+        return StreamingResponse(lines(), media_type='application/x-ndjson', headers={'X-Accel-Buffering': 'no'})
 
     # ---------- Profile ----------
     def own_account(request: Request, actor=Depends(reviewer)):
