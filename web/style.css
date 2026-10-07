@@ -90,7 +90,7 @@ main{margin-right:248px;padding:0 44px 64px;overflow-x:clip} /* nothing moving i
 main>header{height:80px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);font-size:13px;margin-bottom:26px;color:var(--muted)}
 main>header #breadcrumb{color:var(--ink)}
 .identity{display:flex;align-items:center;gap:10px;font-size:13px}
-.avatar{width:32px;height:32px;border-radius:50%;background:var(--soft) url(/static/img/emblem.webp) center/24px no-repeat}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--soft) url(/static/img/emblem-112.webp) center/24px no-repeat}
 .page-title{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin:22px 0 22px}
 .page-title p{color:var(--muted);margin-top:4px;font-size:14px;max-width:62ch}
 
@@ -109,13 +109,6 @@ main>header #breadcrumb{color:var(--ink)}
 .metric strong{display:block;font-family:var(--naskh);font-size:40px;font-weight:700;line-height:1.35;margin:4px 0 0;color:var(--green)}
 .metric small{font-size:12.5px}
 
-/* The illuminated panel */
-.hero{display:grid;grid-template-columns:minmax(0,1fr) clamp(110px,30%,340px);grid-template-rows:auto auto 1fr;background:var(--green-deep);color:#fff;border-radius:var(--radius);overflow:hidden;margin-bottom:26px;min-height:220px}
-.hero>*{grid-column:1;padding-inline:36px 28px}
-.hero>h3{font-size:27px;margin:0;padding-top:30px;padding-bottom:6px}
-.hero>p{color:#dce8e1;font-size:14.5px;max-width:64ch}
-/* The illumination sits in its own column, fading toward the text, so it never runs under words */
-.hero::after{content:"";grid-column:2;grid-row:1/-1;background:url(/static/img/girih-banner.webp) left center/cover no-repeat;-webkit-mask-image:linear-gradient(to right,#000 55%,transparent);mask-image:linear-gradient(to right,#000 55%,transparent)}
 
 .two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:22px;align-items:start}
 .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -181,13 +174,13 @@ dialog.alert::backdrop{background:#0000004d;backdrop-filter:none}
 .alert-actions .destructive{color:#d70015}
 /* Loading: the emblem turns a quarter at a time (eight-fold symmetry makes the loop seamless) */
 .loader{display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 0;color:var(--muted);font-size:14px}
-.loader-mark{width:44px;height:44px;background:url(/static/img/emblem.webp) center/contain no-repeat;animation:turn 1.5s cubic-bezier(.65,0,.35,1) infinite}
+.loader-mark{width:44px;height:44px;background:url(/static/img/emblem-112.webp) center/contain no-repeat;animation:turn 1.5s cubic-bezier(.65,0,.35,1) infinite}
 @keyframes turn{0%{transform:rotate(0) scale(1)}55%{transform:rotate(90deg) scale(.92)}100%{transform:rotate(90deg) scale(1)}}
 #content{position:relative}
 #content.loading>*{opacity:.35;transition:opacity .2s ease}
-#content.loading::before{content:"";position:absolute;z-index:3;top:140px;left:50%;width:44px;height:44px;margin-left:-22px;background:url(/static/img/emblem.webp) center/contain no-repeat;animation:turn 1.5s cubic-bezier(.65,0,.35,1) infinite}
+#content.loading::before{content:"";position:absolute;z-index:3;top:140px;left:50%;width:44px;height:44px;margin-left:-22px;background:url(/static/img/emblem-112.webp) center/contain no-repeat;animation:turn 1.5s cubic-bezier(.65,0,.35,1) infinite}
 .book-stage.turning>*{opacity:0}
-.book-stage.turning::before{content:"";align-self:center;width:44px;height:44px;background:url(/static/img/emblem.webp) center/contain no-repeat;animation:turn 1.5s cubic-bezier(.65,0,.35,1) infinite}
+.book-stage.turning::before{content:"";align-self:center;width:44px;height:44px;background:url(/static/img/emblem-112.webp) center/contain no-repeat;animation:turn 1.5s cubic-bezier(.65,0,.35,1) infinite}
 button.busy{position:relative;color:transparent!important;pointer-events:none}
 /* buttons waiting on the server show a small ring, not a second loader */
 button.busy::after{content:"";position:absolute;inset:0;margin:auto;width:16px;height:16px;border-radius:50%;border:2px solid #164b3d33;border-top-color:var(--green);animation:spin .7s linear infinite}
@@ -313,7 +306,7 @@ body[data-mode=app] #app{animation:fade-in .3s ease-out both}
 .land-actions .quiet{font-size:15px}
 .land-hero{position:relative;isolation:isolate;min-height:min(86svh,800px);display:flex;align-items:center;margin-top:-88px;padding:136px 0 80px}
 /* the study photograph, blurred and veiled in the page colour, fading out at the bottom: depth without edges */
-.land-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to left,#f6f5f0e6 0%,#f6f5f0b3 28%,#f6f5f033 48%,transparent 60%),linear-gradient(to bottom,transparent 86%,var(--bg) 100%),url(/static/img/hero-desk-2560.webp) left center/cover no-repeat}
+.land-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to left,#f6f5f0e6 0%,#f6f5f0b3 28%,#f6f5f033 48%,transparent 60%),linear-gradient(to bottom,transparent 86%,var(--bg) 100%),url(/static/img/hero-desk-1920.webp) left center/cover no-repeat;background:linear-gradient(to left,#f6f5f0e6 0%,#f6f5f0b3 28%,#f6f5f033 48%,transparent 60%),linear-gradient(to bottom,transparent 86%,var(--bg) 100%),image-set(url(/static/img/hero-desk-1920.webp) 1x,url(/static/img/hero-desk-2560-v2.webp) 2x) left center/cover no-repeat}
 /* the header sits above the hero's backdrop */
 /* the header stays at the top while you scroll */
 /* the header lies on the photograph, then turns solid once the page scrolls */
@@ -375,7 +368,7 @@ dialog.alert[open]{animation:alert-in .24s cubic-bezier(.2,.9,.3,1.1)} /* an ale
 
 /* Responsive */
 @media(max-width:980px){.example-grid{grid-template-columns:1fr;gap:28px}}
-@media(min-width:761px) and (max-width:1100px){.land-hero::before{background:linear-gradient(to left,#f6f5f0f5 0%,#f6f5f0e6 45%,#f6f5f099 68%,transparent 88%),linear-gradient(to bottom,transparent 70%,var(--bg) 100%),url(/static/img/hero-desk-2560.webp) left center/cover no-repeat}}
+@media(min-width:761px) and (max-width:1100px){.land-hero::before{background:linear-gradient(to left,#f6f5f0f5 0%,#f6f5f0e6 45%,#f6f5f099 68%,transparent 88%),linear-gradient(to bottom,transparent 70%,var(--bg) 100%),url(/static/img/hero-desk-1280-v2.webp) left center/cover no-repeat;background:linear-gradient(to left,#f6f5f0f5 0%,#f6f5f0e6 45%,#f6f5f099 68%,transparent 88%),linear-gradient(to bottom,transparent 70%,var(--bg) 100%),image-set(url(/static/img/hero-desk-1280-v2.webp) 1x,url(/static/img/hero-desk-1920.webp) 2x) left center/cover no-repeat}}
 @media(max-width:1100px){main{padding:0 24px 40px;margin-right:222px}.sidebar{width:222px}.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.metric:nth-child(3){border-right:0}.metric:nth-child(n+3){border-top:1px solid var(--line)}}
 @media(max-width:760px){
   .brand h1{font-size:30px}
@@ -397,9 +390,6 @@ dialog.alert[open]{animation:alert-in .24s cubic-bezier(.2,.9,.3,1.1)} /* an ale
   .book-bar h3{display:none}
   .book-stage{padding:8px}
   .metric strong{font-size:30px}
-  .hero{grid-template-columns:minmax(0,1fr) 56px}
-  .hero>*{padding-inline:20px 14px}
-  .hero>h3{font-size:23px;padding-top:22px}
   .page-title{align-items:start;flex-direction:column}
   h2{font-size:26px}
   .toolbar{flex-wrap:wrap}
@@ -409,7 +399,7 @@ dialog.alert[open]{animation:alert-in .24s cubic-bezier(.2,.9,.3,1.1)} /* an ale
   .land-wrap{padding:0 16px}
   .land-bar .land-wrap{height:72px}
   .land-hero{min-height:0;align-items:flex-end;margin-top:-72px;padding:372px 0 36px}
-  .land-hero::before{background:linear-gradient(to bottom,transparent 0%,transparent 34%,#f6f5f0e6 52%,var(--bg) 70%),url(/static/img/hero-desk-1280.webp) 18% top/auto 412px no-repeat}
+  .land-hero::before{background:linear-gradient(to bottom,transparent 0%,transparent 34%,#f6f5f0e6 52%,var(--bg) 70%),url(/static/img/hero-desk-1280-v2.webp) 18% top/auto 412px no-repeat}
   .principle p span{white-space:normal}
   .land-brand span{font-size:26px}
   .land-actions{gap:8px}
@@ -470,7 +460,7 @@ dialog.profile{width:min(520px,94vw);max-height:90vh;border:0;border-radius:18px
 /* Analyse tab */
 /* overview: a photograph of the reading desk carries the way into analysis */
 .analyze-cta{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:16px;min-height:210px;border-radius:18px;padding:30px 34px;margin-bottom:26px;overflow:hidden;
-  background:linear-gradient(to left,#f6f3eaf2 0%,#f6f3eacc 38%,#f6f3ea33 62%,transparent 78%),url(/static/img/overview-analyze-1680.webp) left center/cover no-repeat;box-shadow:0 1px 2px #1c302c0d,0 12px 30px #1c302c14}
+  background:linear-gradient(to left,#f6f3eaf2 0%,#f6f3eacc 38%,#f6f3ea33 62%,transparent 78%),url(/static/img/overview-analyze-1680-v2.webp) left center/cover no-repeat;box-shadow:0 1px 2px #1c302c0d,0 12px 30px #1c302c14}
 .analyze-cta h3{font-size:30px;color:var(--green-deep)}
 .analyze-cta p{color:#3d4f48;font-size:15px;margin-top:4px;max-width:42ch}
 .analyze-cta .primary{font-weight:600}
@@ -492,7 +482,7 @@ dialog.profile{width:min(520px,94vw);max-height:90vh;border:0;border-radius:18px
 .feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px;font-size:13.5px;color:var(--muted)}
 .feedback button{font-weight:400;min-height:34px;padding:4px 16px;border-radius:7px;font-size:13.5px}
 .feedback button.chosen{background:var(--green);border-color:var(--green);color:#fff}
-@media(max-width:760px){.analyze-cta{padding:22px;min-height:0;background:linear-gradient(#f6f3eaeb,#f6f3eaeb),url(/static/img/overview-analyze-1680.webp) left center/cover no-repeat}.stats strong{font-size:22px}.profile-head{padding:22px 18px 16px}.profile-body{padding:4px 18px 20px}}
+@media(max-width:760px){.analyze-cta{padding:22px;min-height:0;background:linear-gradient(#f6f3eaeb,#f6f3eaeb),url(/static/img/overview-analyze-1680-v2.webp) left center/cover no-repeat}.stats strong{font-size:22px}.profile-head{padding:22px 18px 16px}.profile-body{padding:4px 18px 20px}}
 
 /* Modern, thin scrollbars */
 *{scrollbar-width:thin;scrollbar-color:#c5cec4 transparent}
@@ -528,7 +518,7 @@ body.nav-collapsed .account-chip{padding-inline:6px 0}
 
 /* Overview: the method in a band of its own, over the library photograph */
 .method-band{position:relative;margin-top:26px;border-radius:18px;overflow:hidden;color:#f3ead6;
-  background:linear-gradient(#06231bcc,#06231be6),url(/static/img/method-library-1680.webp) center/cover no-repeat}
+  background:linear-gradient(#06231bcc,#06231be6),url(/static/img/method-library-1680-v2.webp) center/cover no-repeat}
 .method-inner{padding:40px 36px;max-width:980px}
 .method-inner h3{font-size:30px;color:#f6eedb}
 .method-inner p{margin-top:8px;color:#d6e2da;font-size:15px;line-height:2;max-width:72ch}
@@ -592,10 +582,6 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .sheet-body{padding:6px 18px 20px}
 .sheet-body .auth-error{margin-top:12px}
 
-/* The analysis panel sits on a light, airy wash */
-.analyze{background:linear-gradient(#ffffffa6,#ffffffa6),url(/static/img/analyze-panel-1600.webp) center/cover no-repeat;border-top-color:#9db8a6}
-.analyze textarea{background:#fffffff0}
-.analyze .segmented span{background:#ffffffd9}
 
 /* History: a tidy list; a row opens the analysis in a window; selection for deleting several */
 .h-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
@@ -1118,7 +1104,7 @@ body.immersed .land-bar{transform:translateY(-100%)}
    from the page's edge to the menu and from the header line to the foot, the list floating over it; a soft veil keeps
    the middle of the thread quiet for the question (--side moves the veil with the list). It fades as a thread opens. */
 .chat::before{content:'';position:absolute;z-index:-1;inset:-16px -44px -64px -44px;pointer-events:none;opacity:0;transition:opacity .45s ease;
-  background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 58% 64% at calc(50% + var(--side) / 2) 44%,#faf9f5f0 0%,#faf9f5c4 52%,#faf9f500 82%),url(/static/img/analyze-desk-2560.webp) center bottom/cover no-repeat}
+  background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 58% 64% at calc(50% + var(--side) / 2) 44%,#faf9f5f0 0%,#faf9f5c4 52%,#faf9f500 82%),url(/static/img/analyze-desk-2560-v2.webp) center bottom/cover no-repeat}
 .chat:has(>.thread>.thread-new)::before{opacity:1}
 body.resizing .chat{transition:none}
 .chat>.chat-list{grid-column:3;grid-row:1}
@@ -1134,7 +1120,9 @@ body.resizing .chat{transition:none}
 .chat-split:focus-visible{outline:0}
 body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 .chat-list{position:sticky;top:16px;align-self:stretch;min-width:0;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 32px);padding:8px;border-radius:18px;
-  background:#fbfaf6c4;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:0 0 0 1px #1c302c12,0 1px 2px #1c302c0a,0 14px 34px #1c302c10}
+  background:#fbfaf6;box-shadow:0 0 0 1px #1c302c12,0 1px 2px #1c302c0a,0 14px 34px #1c302c10;transition:background-color .45s ease}
+/* frosted only over the desk picture: a blur costs the graphics card on every scroll, so plain paper gets none */
+.chat:has(>.thread>.thread-new) .chat-list{background:#fbfaf6c4;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4)}
 .chat-list-head{position:relative;display:flex;align-items:center;min-height:36px;overflow:hidden}
 .chat-list-head h3{min-width:0;overflow:hidden;padding-inline:9px 44px;font-family:var(--ui);font-size:14px;font-weight:600;line-height:1.4;color:#3d4d47;white-space:nowrap;transition:opacity .2s ease}
 .chat-toggle{position:absolute;top:0;inset-inline-end:0;min-height:0;width:36px;height:36px;padding:0;border:0;border-radius:10px;display:grid;place-items:center;background:transparent;color:var(--muted)}
@@ -1254,7 +1242,7 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
   .chat-split{display:none}
   .chat>.thread{grid-column:1}
   .chat,.chat.list-folded{--side:0px}
-  .chat-list{-webkit-backdrop-filter:none;backdrop-filter:none;align-self:auto}
+  .chat-list,.chat:has(>.thread>.thread-new) .chat-list{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none;align-self:auto}
   /* the drawer slides in from the left, where the list stands on a wide screen and where its button is; a fixed box
      moved past the edge does not widen the page */
   .chat-list{position:fixed;inset:0 auto 0 0;z-index:30;width:min(320px,86vw);max-height:none;padding:14px 12px;background:var(--surface);
@@ -1298,5 +1286,5 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 @media(max-width:1100px){.chat::before{inset:-16px -24px -40px -24px}}
 @media(max-width:760px){
   .thread-new{padding:16px 0 6vh}
-  .chat::before{inset:-16px -16px -36px -16px;background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 96% 74% at 50% 42%,#faf9f5f2 0%,#faf9f5d4 62%,#faf9f500 90%),url(/static/img/analyze-desk-1280.webp) 20% bottom/cover no-repeat}
+  .chat::before{inset:-16px -16px -36px -16px;background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 96% 74% at 50% 42%,#faf9f5f2 0%,#faf9f5d4 62%,#faf9f500 90%),url(/static/img/analyze-desk-1280-v2.webp) 20% bottom/cover no-repeat}
 }

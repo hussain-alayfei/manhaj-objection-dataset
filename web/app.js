@@ -100,6 +100,7 @@ async function init(){
  if(titles[location.hash.slice(1)])view=location.hash.slice(1);
  if(!token){setMode('landing');return;}
  setMode('app');
+ warm(view); // the opened page's data travels alongside the account check, not after it
  try{const me=await api('/me');ready=true;taxonomy=me.taxonomy;caps=me.capabilities||{};showAccount(me);await render();prefetch();}
  catch(e){ready=false;if(e.status===401){signedOut(token?'انتهت الجلسة. سجّل الدخول من جديد.':'');return;}notify('تعذر الاتصال بالخادم. أعد تحميل الصفحة بعد قليل.','error');}
 }
@@ -278,11 +279,23 @@ function recordsPath(name,start=0,q='',chosen=name==='review'?'needs_review':'')
  const params=new URLSearchParams({limit:'30',offset:String(start),q});if(kind)params.set('kind',kind);if(phase)params.set('phase',phase);if(chosen)params.set('status',chosen);
  return '/records?'+params;
 }
-// After the first page appears, quietly load every tab's first page so switching tabs is instant.
+// The first requests each page makes. They can start before the page is opened: at sign-in for the page being
+// opened (alongside the account check), and for any tab as soon as the pointer rests on it or it takes focus, so
+// opening it feels instant without loading every tab for nothing. Same paths as the pages use, so the cache answers.
+const VIEW_DATA={overview:()=>['/summary','/records?kind=objection&status=needs_review&limit=5'],analyze:()=>['/summary','/diagnoses?limit=30&offset=0'],
+ sources:()=>['/sources'],evaluation:()=>['/documents/dataset_manifests','/documents/evaluation_runs','/summary'],
+ export:()=>['/documents/dataset_manifests','/documents/training_exports','/summary'],profile:()=>['/account']};
+function warm(name){if(!token||!titles[name])return;for(const path of (VIEW_DATA[name]?.()||[recordsPath(name)]))api(path).catch(()=>{});}
+let intent;
+const intentOf=e=>e.target.closest?.('[data-view],[data-go]');
+document.addEventListener('pointerover',e=>{const b=intentOf(e);if(!b||!ready)return;clearTimeout(intent);intent=setTimeout(()=>warm(b.dataset.view||b.dataset.go),70);});
+document.addEventListener('pointerout',e=>{if(intentOf(e))clearTimeout(intent);});
+document.addEventListener('focusin',e=>{const b=intentOf(e);if(b&&ready)warm(b.dataset.view||b.dataset.go);});
+document.addEventListener('touchstart',e=>{const b=intentOf(e);if(b&&ready)warm(b.dataset.view||b.dataset.go);},{passive:true});
+// After the first page appears, quietly load the review queue, the tab reviewers open most.
 function prefetch(){
- const run=()=>{for(const name of ['review','objections','rules','families','external'])api(recordsPath(name)).catch(()=>{});
-  for(const path of ['/sources','/documents/dataset_manifests','/documents/evaluation_runs','/documents/training_exports','/records?kind=rule&limit=200'])api(path).catch(()=>{});};
- ('requestIdleCallback' in window)?requestIdleCallback(run,{timeout:1500}):setTimeout(run,600);
+ const run=()=>warm('review');
+ ('requestIdleCallback' in window)?requestIdleCallback(run,{timeout:2500}):setTimeout(run,1200);
 }
 let renderSeq=0;
 const stale=seq=>seq!==renderSeq; // a slower response from a previous tab must not overwrite the current one
@@ -440,7 +453,7 @@ document.addEventListener('keydown',e=>{
 });
 const threadTop=open=>`<header class="thread-head">${open?'<button type="button" class="thread-new-btn" data-chat-new>'+ICON_PLUS+'<span>تحليل جديد</span></button>':''}<button type="button" class="thread-list-btn" data-chat-list aria-controls="chat-list" aria-expanded="false">${ICON_LIST}<span>التحليلات</span></button></header>`;
 function newThreadHtml(){
- return `${threadTop(false)}<div class="thread-new"><img src="/static/img/emblem.webp" alt="" width="52" height="52"><h2>ما الشبهة التي تريد تحليلها؟</h2><p>يحلّلها مَنْهَج في إحدى عشرة خطوة، من تحرير الدعوى إلى جواب موثّق بمصادره، ثم تسأله عمّا تشاء في تحليله.</p>
+ return `${threadTop(false)}<div class="thread-new"><img src="/static/img/emblem-112.webp" alt="" width="52" height="52"><h2>ما الشبهة التي تريد تحليلها؟</h2><p>يحلّلها مَنْهَج في إحدى عشرة خطوة، من تحرير الدعوى إلى جواب موثّق بمصادره، ثم تسأله عمّا تشاء في تحليله.</p>
  <form id="diagnose-form" class="composer big"><label for="diagnose-text" class="sr-only">نص الشبهة</label><textarea id="diagnose-text" rows="3" required maxlength="12000" placeholder="اكتب الشبهة هنا…"></textarea>
   <div class="composer-bar"><fieldset class="segmented small"><legend class="sr-only">القواعد المستعملة في التحليل</legend><label><input type="radio" name="rules-source" value="approved" ${chatDrafts?'':'checked'}><span>القواعد المعتمدة</span></label><label><input type="radio" name="rules-source" value="all" ${chatDrafts?'checked':''}><span>كل قواعد الكتاب</span></label></fieldset><button class="primary send" id="diagnose-submit" aria-label="حلّل الشبهة">${ICON_SEND}<span>حلّل</span></button></div></form>
  <div class="thread-try"><h4>أمثلة تجرّبها</h4>${EXAMPLES.map(x=>`<button type="button" data-example="${esc(x)}">${esc(x)}</button>`).join('')}</div>
@@ -990,7 +1003,7 @@ function diagnosisHtml(r,{retry=false}={}){
  if(r.abstention_reason){
   const [head,why]=abstentions[r.abstention_reason]||['لم تُصنَّف الشبهة','لم يتمكن النظام من تصنيف هذه الشبهة.'];
   const again=retry&&r.abstention_reason==='no_approved_methodology'&&r.mode!=='draft'?'<button type="button" class="primary" data-retry-drafts>أعد التحليل بكل قواعد الكتاب</button>':'';
-  return `<div class="abstain"><img src="/static/img/emblem.webp" alt="" width="36" height="36"><div><h4>${esc(head)}</h4><p>${esc(why)}</p>${again}</div></div>${feedbackHtml(r)}`;
+  return `<div class="abstain"><img src="/static/img/emblem-112.webp" alt="" width="36" height="36"><div><h4>${esc(head)}</h4><p>${esc(why)}</p>${again}</div></div>${feedbackHtml(r)}`;
  }
  const a=r.analysis,draft=r.mode==='draft',item=(label,value)=>plain(value)?`<dt>${label}</dt><dd>${esc(ar(plain(value)))}</dd>`:'';
  const list=(label,values)=>values&&values.length?`<dt>${label}</dt><dd><ol>${values.map(x=>`<li>${esc(plain(x))}</li>`).join('')}</ol></dd>`:'';
