@@ -669,10 +669,11 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .panel-wait.live{color:var(--green-deep)}
 /* Moving on: the step read steps back and away to the right, the next one comes in from the left (and the reverse) */
 /* Moving on: the next window opens out of its step in the list (drawn by the script); the one read fades where it is */
-.panel.leaving{position:absolute;inset:0 0 auto 0;pointer-events:none;z-index:0;animation:panel-fade-out .3s ease forwards}
-.panel.entering{z-index:1;animation:panel-fade-in .35s ease both}
-.panel.entering.expanding{animation:none}
-.panel.entering .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0)*45ms + 340ms)}
+.panel.leaving{position:absolute;inset:0 0 auto 0;pointer-events:none;z-index:0;animation:panel-fade-out .26s ease forwards}
+/* the fade is only for a window that has no step to open from; finishing an opening never replays it */
+.panel.entering{z-index:1}
+.panel.fade-in{animation:panel-fade-in .35s ease both}
+.panel.entering .rise{animation:rise .55s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0)*40ms + 300ms)}
 @keyframes panel-fade-out{to{opacity:0;transform:scale(.985)}}
 @keyframes panel-fade-in{from{opacity:0}}
 .panel-nav{align-items:center}
@@ -710,7 +711,7 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .panel.answer.entering .answer-head h3{animation-delay:.12s}
 .panel.answer.entering .answer-summary{animation-delay:.24s}
 @keyframes rule-draw{from{transform:scaleX(0)}}
-@media(prefers-reduced-motion:reduce){.panel.entering,.panel.leaving,.panel.entering .rise,.panel.answer.entering .answer-head>*,.panel.answer.entering .answer-head::after{animation:none}}
+@media(prefers-reduced-motion:reduce){.panel.fade-in,.panel.leaving,.panel.entering .rise,.panel.answer.entering .answer-head>*,.panel.answer.entering .answer-head::after{animation:none}}
 .none{color:#a3ada8}
 .m-empty{color:var(--muted);font-size:14px}
 .m-foot{margin-top:14px;font-size:13px;color:var(--muted)}
@@ -1202,16 +1203,20 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 .dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
 @keyframes dot{40%{opacity:1;transform:translateY(-3px)}}
 
-/* while the analysis is written the step glows softly at its edge, in the manner of Siri */
-@property --glow{syntax:'<angle>';inherits:false;initial-value:0deg}
+/* While the analysis is written the window's edge glows softly, in the manner of Siri. The glow is a ring only (its
+   middle is cut away), so no colour can show through a window that is still opening; its colours drift by hue and it
+   breathes, both drawn by the graphics card. It steps aside while a window opens. */
 .method.live .stage{position:relative;isolation:isolate}
-.method.live .stage::before,.method.live .stage::after{content:'';position:absolute;z-index:-1;border-radius:19px;
-  background:conic-gradient(from var(--glow),#2f9e74,#86c9a8,#e7c47e,#ec9a8f,#b19be3,#6fb3e6,#2f9e74);animation:glow-turn 5s linear infinite}
-.method.live .stage::before{inset:-2px}
-.method.live .stage::after{inset:-10px;border-radius:26px;filter:blur(20px);opacity:.5;animation:glow-turn 5s linear infinite,glow-breathe 2.6s ease-in-out infinite alternate}
-@keyframes glow-turn{to{--glow:360deg}}
-@keyframes glow-breathe{from{opacity:.32}to{opacity:.62}}
-@media(prefers-reduced-motion:reduce){.method.live .stage::before,.method.live .stage::after{animation:none}}
+.method.live .stage::before,.method.live .stage::after{content:'';position:absolute;z-index:-1;pointer-events:none;
+  background:conic-gradient(from 210deg,#2f9e74,#86c9a8,#e7c47e,#ec9a8f,#b19be3,#6fb3e6,#2f9e74);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);transition:opacity .25s ease;will-change:filter}
+.method.live .stage::before{inset:-2px;padding:2px;border-radius:18px;animation:glow-ring 7s linear infinite}
+.method.live .stage::after{inset:-18px;padding:18px;border-radius:34px;animation:glow-soft 7s linear infinite}
+.method.live .stage:has(>.panel.expanding)::before,.method.live .stage:has(>.panel.expanding)::after{opacity:0}
+@keyframes glow-ring{to{filter:hue-rotate(360deg)}}
+@keyframes glow-soft{0%{filter:blur(14px) hue-rotate(0deg) opacity(.42)}50%{filter:blur(14px) hue-rotate(180deg) opacity(.68)}100%{filter:blur(14px) hue-rotate(360deg) opacity(.42)}}
+@media(prefers-reduced-motion:reduce){.method.live .stage::before{animation:none}.method.live .stage::after{animation:none;filter:blur(14px) opacity(.5)}}
 
 @media(max-width:1280px){
   .chat,.chat.list-folded{grid-template-columns:minmax(0,1fr);gap:0}
