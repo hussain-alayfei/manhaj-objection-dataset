@@ -328,64 +328,111 @@ async function overview(){
 }
 // ---------- Analyse an objection, with the reviewer's own history ----------
 const when=iso=>iso?new Date(iso).toLocaleString('ar-u-nu-latn',{day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
-const verdictPill=d=>d.abstention_reason?'<span class="pill pending">لم يُصنَّف</span>':`<span class="pill">${esc(patternName(d.primary_pattern))}</span>`;
-function historyItem(d){
- const flags=(d.mode==='draft'?'<span class="pill draft">مسودة</span>':'')+(d.feedback?.verdict==='wrong'?'<span class="pill rejected">أُبلغ عن خطأ</span>':d.feedback?.verdict==='correct'?'<span class="pill">صحيح</span>':'');
- return `<li class="h-row" data-id="${esc(d.id)}"><label class="h-pick"><input type="checkbox" data-pick="${esc(d.id)}" aria-label="تحديد هذا التحليل"></label><button type="button" class="h-open" data-diag="${esc(d.id)}"><span class="h-text">${esc(ar(d.input_ar))}</span><span class="h-meta"><time>${esc(when(d.created_at))}</time>${verdictPill(d)}${flags}</span></button></li>`;
+// ---------- Analyses as conversations: the reader's analyses listed beside one open thread ----------
+// A new thread asks for the objection; an open one shows the question, the analysis step by step, and the
+// questions asked about it afterwards, answered from that analysis alone and written as they arrive.
+const ICON_PLUS='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>';
+const ICON_SEND='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 19V5m-6 6l6-6l6 6"/></svg>';
+const ICON_TRASH='<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 7h16m-10 4v6m4-6v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+const ICON_LIST='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" d="M4 6h16M4 12h16M4 18h10"/></svg>';
+const EXAMPLES=['كيف يقول ﷺ: «سبعين خريفًا»، وفي حديث آخر: «مائة عام»؟ أليس هذا تناقضًا؟','كيف تُنفى رؤية الله بقوله تعالى: ﴿لا تدركه الأبصار﴾ وقد ثبتت في الآخرة؟','إذا كان الله قدّر المعصية، فلماذا يُحاسَب عليها العبد؟'];
+let chatActive=null,chatItems=[],chatDrafts=false;
+function dayGroup(iso){
+ const d=new Date(iso),t=new Date(),days=Math.round((new Date(t.getFullYear(),t.getMonth(),t.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);
+ return days<=0?'اليوم':days===1?'أمس':days<7?'آخر سبعة أيام':days<30?'آخر ثلاثين يومًا':'أقدم';
 }
-const emptyHistory=`<div class="empty-art"><img src="/static/img/empty-history.webp" alt="" width="280" height="210" loading="lazy"><p>لم تحلّل أي شبهة بعد. اكتب أول شبهة في الأعلى، وستجدها هنا مع نتيجتها.</p></div>`;
-let historyShown=0;
-// In selection mode the rows show checkboxes; the delete button counts what is chosen.
-function updatePicks(){
- const all=[...document.querySelectorAll('[data-pick]')],chosen=all.filter(x=>x.checked).length,del=document.querySelector('[data-select=delete]');
- if(del){del.disabled=!chosen;del.textContent=chosen?`حذف (${num(chosen)})`:'حذف';}
- const pickAll=$('#pick-all');if(pickAll){pickAll.checked=all.length>0&&chosen===all.length;pickAll.indeterminate=chosen>0&&chosen<all.length;}
+function chatItem(d){
+ const state=d.abstention_reason?'<span class="pill pending">لم يُصنَّف</span>':d.primary_pattern?`<span class="pill">${esc(patternName(d.primary_pattern))}</span>`:'';
+ const flags=(d.mode==='draft'?'<span class="pill draft">مسودة</span>':'')+(d.feedback?.verdict==='wrong'?'<span class="pill rejected">أُبلغ عن خطأ</span>':'');
+ const on=d.id===chatActive;
+ return `<div class="chat-item${on?' active':''}" data-chat="${esc(d.id)}"><button type="button" class="chat-open" data-diag="${esc(d.id)}"${on?' aria-current="true"':''}><span class="chat-title">${esc(ar(d.input_ar))}</span><span class="chat-meta">${state}${flags}</span></button><button type="button" class="chat-del" data-delete-one="${esc(d.id)}" aria-label="حذف هذا التحليل" title="حذف">${ICON_TRASH}</button></div>`;
 }
-document.addEventListener('change',e=>{
- if(e.target.id==='pick-all'){document.querySelectorAll('[data-pick]').forEach(x=>x.checked=e.target.checked);updatePicks();}
- if(e.target.dataset?.pick!==undefined)updatePicks();
-});
-async function openAnalysis(id){
- const r=await api('/diagnoses/'+id);
- $('#editor-content').innerHTML=`<header class="modal-head"><div class="modal-title"><h3 id="editor-title">تحليل شبهة</h3><small class="muted">${esc(when(r.created_at))}</small>${r.mode==='draft'?'<span class="pill draft">مسودة</span>':''}</div><button data-action="close">إغلاق</button></header>
- <div class="analysis-window">${r.method?`<section class="method in-window" data-method></section>${feedbackHtml(r)}`:`<section class="asked"><h4>الشبهة</h4><blockquote>${esc(ar(r.input_ar))}</blockquote></section><section>${diagnosisHtml(r)}</section>`}</div>
- <footer class="modal-foot"><button type="button" class="danger" data-delete-one="${esc(r.id)}">حذف هذا التحليل</button><button type="button" class="primary" data-action="close">تم</button></footer>`;
- if(r.method)mountMethod($('#editor-content [data-method]'),methodFromResult(r));
- $('#editor').showModal();$('#editor .analysis-window').scrollTop=0;
+function drawChatList(total){
+ const box=$('#chat-items');if(!box)return;
+ if(!chatItems.length){box.innerHTML='<p class="chat-none">لا تحليلات بعد. ستظهر هنا كل شبهة تحلّلها.</p>';$('#history-more').hidden=true;return;}
+ let html='',group='';
+ for(const d of chatItems){const g=dayGroup(d.created_at);if(g!==group){html+=`<h4 class="chat-group">${g}</h4>`;group=g;}html+=chatItem(d);}
+ box.innerHTML=html;$('#history-more').hidden=chatItems.length>=total;
 }
 async function refreshHistory(append=false){
- const box=$('#history-list');if(!box)return;
- const data=await api(`/diagnoses?limit=20&offset=${append?historyShown:0}`);
- historyShown=(append?historyShown:0)+data.items.length;
- if(append)box.querySelector('ol')?.insertAdjacentHTML('beforeend',data.items.map(historyItem).join(''));else box.innerHTML=data.items.length?`<ol class="h-list">${data.items.map(historyItem).join('')}</ol>`:emptyHistory;
- $('#history-tools').hidden=!data.total;updatePicks();
- $('#history-count').textContent=data.total?arCount(data.total,['تحليل واحد','تحليلان','تحليلات','تحليلًا','تحليل']):'';
- $('#history-more').hidden=historyShown>=data.total;
+ if(!$('#chat-items'))return;
+ const data=await api(`/diagnoses?limit=30&offset=${append?chatItems.length:0}`);
+ chatItems=append?[...chatItems,...data.items]:data.items;drawChatList(data.total);
+}
+function markActive(){
+ document.querySelectorAll('.chat-item').forEach(x=>{const on=x.dataset.chat===chatActive,b=x.querySelector('.chat-open');x.classList.toggle('active',on);if(on)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');});
 }
 async function analyzeView(){
  const seq=renderSeq;
  const s=await api('/summary').catch(()=>({rules_approved:0}));
  if(stale(seq))return;
- const none=!s.rules_approved; // with no approved rules yet, the book's candidate rules are the only useful source
- $('#content').innerHTML=title('حلّل شبهة','يحلّل مَنْهَج الشبهة في إحدى عشرة خطوة، من تحرير الدعوى إلى جواب موثّق بمصادره، وتظهر كل خطوة حين تُكتب.')+
- `<section class="analyze">
-  <form id="diagnose-form">
-   <label for="diagnose-text" class="field-title">نص الشبهة</label>
-   <small class="hint">اكتب الشبهة نفسها في جملة أو بضع جمل. وإن ألصقت مقتطفًا من الكتاب، استخرج النظام الشبهة منه.</small>
-   <textarea id="diagnose-text" required maxlength="12000" placeholder="مثال: كيف يقول ﷺ: «سبعين خريفًا»، وفي حديث آخر: «مائة عام»؟ أليس هذا تناقضًا؟"></textarea>
-   <fieldset class="segmented" aria-label="القواعد المستعملة في التحليل"><legend class="field-title">القواعد المستعملة</legend>
-    <label><input type="radio" name="rules-source" value="approved" ${none?'':'checked'}><span>المعتمدة فقط</span></label>
-    <label><input type="radio" name="rules-source" value="all" ${none?'checked':''}><span>كل قواعد الكتاب (مسودة)</span></label>
-   </fieldset>
-   ${none?'<small class="hint">لم تُعتمد قواعد بعد، لذلك يستعين التحليل بقواعد الكتاب قبل مراجعتها، وتُعلَّم النتيجة «مسودة».</small>':''}
-   <div class="analyze-foot"><span></span><div class="form-actions">${caps.semantic&&!caps.read_only&&me_.role==='admin'?'<button type="button" class="quiet" data-action="refresh-index">تحديث البحث</button>':''}<button class="primary big" id="diagnose-submit">حلّل الشبهة</button></div></div>
-  </form>
-  <p class="ai-note">النتيجة اقتراح آلي يعين على البحث، وليست فتوى ولا حكمًا، ولا تُعتمد قبل أن يراجعها مختص.</p>
-  <div id="diagnosis-result"></div>
- </section>
- <section class="my-history" id="my-history"><div class="h-head"><div><h3>سجل تحليلاتك</h3><span class="muted" id="history-count"></span></div><div class="h-tools" id="history-tools" hidden><button type="button" class="quiet" data-select="start">تحديد</button><span class="h-select-tools"><label class="check"><input type="checkbox" id="pick-all">تحديد الكل</label><button type="button" class="danger" data-select="delete" disabled>حذف</button><button type="button" class="quiet" data-select="done">إلغاء</button></span></div></div><div id="history-list">${loaderHtml('جارٍ تحميل السجل')}</div><button type="button" id="history-more" class="more-btn" hidden>عرض المزيد</button></section>`;
- try{await refreshHistory();}catch(err){if(!stale(seq))$('#history-list').innerHTML=`<p class="muted">${esc(err.message)}</p>`;}
+ chatDrafts=!s.rules_approved; // with no approved rules yet, the book's candidate rules are the only useful source
+ $('#content').innerHTML=`<div class="chat" id="chat"><aside class="chat-list" id="chat-list" aria-label="تحليلاتك"><button type="button" class="chat-new" data-chat-new>${ICON_PLUS}<span>تحليل جديد</span></button><div class="chat-items" id="chat-items" role="navigation" aria-label="سجل تحليلاتك"></div><button type="button" class="quiet chat-more" id="history-more" hidden>عرض المزيد</button></aside><button type="button" class="chat-scrim" data-chat-list tabindex="-1" aria-label="إغلاق قائمة التحليلات"></button><section class="thread" id="thread"></section></div>`;
+ showThread(chatActive).catch(err=>notify(err.message,'error'));
+ try{await refreshHistory();}catch(err){if(!stale(seq))$('#chat-items').innerHTML=`<p class="chat-none">${esc(err.message)}</p>`;}
 }
+const threadTop=open=>`<header class="thread-head"><button type="button" class="thread-list-btn" data-chat-list aria-label="قائمة التحليلات">${ICON_LIST}<span>التحليلات</span></button>${open?'<button type="button" class="thread-new-btn" data-chat-new>'+ICON_PLUS+'<span>تحليل جديد</span></button>':''}</header>`;
+function newThreadHtml(){
+ return `${threadTop(false)}<div class="thread-new"><img src="/static/img/emblem.webp" alt="" width="52" height="52"><h2>ما الشبهة التي تريد تحليلها؟</h2><p>يحلّلها مَنْهَج في إحدى عشرة خطوة، من تحرير الدعوى إلى جواب موثّق بمصادره، ثم تسأله عمّا تشاء في تحليله.</p>
+ <form id="diagnose-form" class="composer big"><label for="diagnose-text" class="sr-only">نص الشبهة</label><textarea id="diagnose-text" rows="3" required maxlength="12000" placeholder="اكتب الشبهة هنا…"></textarea>
+  <div class="composer-bar"><fieldset class="segmented small"><legend class="sr-only">القواعد المستعملة في التحليل</legend><label><input type="radio" name="rules-source" value="approved" ${chatDrafts?'':'checked'}><span>القواعد المعتمدة</span></label><label><input type="radio" name="rules-source" value="all" ${chatDrafts?'checked':''}><span>كل قواعد الكتاب</span></label></fieldset><button class="primary send" id="diagnose-submit" aria-label="حلّل الشبهة">${ICON_SEND}<span>حلّل</span></button></div></form>
+ <div class="thread-try"><h4>أمثلة تجرّبها</h4>${EXAMPLES.map(x=>`<button type="button" data-example="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+ <p class="ai-note">النتيجة اقتراح آلي يعين على البحث، وليست فتوى ولا حكمًا، ولا تُعتمد قبل أن يراجعها مختص.${chatDrafts?' ولم تُعتمد قواعد بعد، فيستعين التحليل بقواعد الكتاب قبل مراجعتها، وتُعلَّم النتيجة «مسودة».':''}</p></div>`;
+}
+const turnHtml=t=>`<div class="msg me"><p>${esc(t.question)}</p></div><div class="msg bot"><div class="md">${md(t.answer)}</div></div>`;
+function askHtml(did){
+ return `<form id="ask-form" class="composer ask" data-did="${esc(did||'')}"><label for="ask-text" class="sr-only">سؤالك عن التحليل</label><textarea id="ask-text" rows="1" maxlength="2000" required placeholder="${did?'اسأل عن هذا التحليل…':'تستطيع السؤال حين يكتمل التحليل'}"${did?'':' disabled'}></textarea><button class="primary send" aria-label="أرسل السؤال"${did?'':' disabled'}>${ICON_SEND}</button></form><p class="composer-note">يجيب من هذا التحليل ومصادره فقط، ولا يُصدر فتوى.</p>`;
+}
+function conversationHtml(input,did){
+ return `${threadTop(true)}<div class="thread-body"><div class="msg me"><p>${esc(ar(input))}</p></div><div class="msg bot analysis"><section class="method" data-method></section><div data-after></div></div><div class="turns" id="turns"></div></div><div class="thread-foot">${askHtml(did)}</div>`;
+}
+// One analysis in the thread, or a new one when no id is given; the list marks the open one
+async function showThread(id){
+ const thread=$('#thread');if(!thread)return;
+ chatActive=id||null;markActive();$('#chat')?.classList.remove('list-open');
+ if(!id){thread.innerHTML=newThreadHtml();$('#diagnose-text')?.focus({preventScroll:true});scrollTo(0,0);return;}
+ thread.innerHTML=`${threadTop(true)}<div class="thread-body"><div class="writing" role="status"><p>يُفتح التحليل…</p><i></i><i></i><i></i></div></div>`;
+ const r=await api('/diagnoses/'+id);
+ if(chatActive!==id||!thread.isConnected)return;
+ thread.innerHTML=conversationHtml(r.input_ar,r.method?r.id:'');
+ const bot=thread.querySelector('.msg.bot.analysis');
+ if(r.method){mountMethod(bot.querySelector('[data-method]'),methodFromResult(r));bot.querySelector('[data-after]').innerHTML=feedbackHtml(r);}
+ else bot.innerHTML=diagnosisHtml(r);
+ $('#turns').innerHTML=(r.conversation||[]).map(turnHtml).join('');
+ scrollTo(0,0);
+}
+async function openAnalysis(id){
+ chatActive=id;
+ if(view!=='analyze'){location.hash='analyze';return;}
+ await showThread(id);
+}
+// Answers arrive as markdown: headings, lists, quotes, bold and links, drawn safely (the text is escaped first)
+function md(src){
+ const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(^|[\s(«])\*(?!\s)([^*]+?)\*(?=[\s).،,:؛»]|$)/g,'$1<em>$2</em>')
+  .replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+ let html='',list=null,para=[],quote=[];
+ const closePara=()=>{if(para.length){html+=`<p>${para.map(inline).join('<br>')}</p>`;para=[];}};
+ const closeQuote=()=>{if(quote.length){html+=`<blockquote>${quote.map(inline).join('<br>')}</blockquote>`;quote=[];}};
+ const closeList=()=>{if(list){html+=`</${list}>`;list=null;}};
+ const closeAll=()=>{closePara();closeQuote();closeList();};
+ for(const raw of String(src||'').replace(/\r/g,'').split('\n')){
+  const line=raw.replace(/\s+$/,'');let m;
+  if(!line.trim()){closeAll();continue;}
+  if((m=line.match(/^\s*#{1,6}\s+(.*)$/))){closeAll();html+=`<h4>${inline(m[1])}</h4>`;continue;}
+  if(/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)){closeAll();html+='<hr>';continue;}
+  if((m=line.match(/^\s*>\s?(.*)$/))){closePara();closeList();quote.push(m[1]);continue;}
+  if((m=line.match(/^\s*[-*•]\s+(.*)$/))||(m=line.match(/^\s*(?:\d+|[٠-٩]+)[.)]\s+(.*)$/))){
+   const kind=/^\s*[-*•]/.test(line)?'ul':'ol';closePara();closeQuote();
+   if(list!==kind){closeList();html+=`<${kind}>`;list=kind;}
+   html+=`<li>${inline(m[1])}</li>`;continue;}
+  closeQuote();closeList();para.push(line.trim());
+ }
+ closeAll();return html;
+}
+const fit=t=>{t.style.height='auto';t.style.height=Math.min(t.scrollHeight,240)+'px';};
+document.addEventListener('input',e=>{if(e.target.matches?.('.composer textarea'))fit(e.target);});
+// Enter sends, Shift+Enter starts a new line (as in a chat)
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.target.matches?.('.composer textarea')){e.preventDefault();const f=e.target.form;if(e.target.value.trim())f.requestSubmit(f.querySelector('button.send'));}});
 // Tabs that open only after expert review say so plainly, with the progress so far and the next step.
 function gateHtml({heading,why,steps,s}){
  const approvedObjections=s.objections_approved??0,approvedRules=s.rules_approved??0;
@@ -650,7 +697,7 @@ const RAIL_STATE={done:'اكتملت',active:'جارية الآن',draft:'صيغ
 const written=(st,i)=>{const s=STEPS[i];if(!s)return false;if(s.key==='review')return st.rounds.length>0||['done','fail','skip'].includes(st.status.review);return st.steps[s.key]!==undefined;};
 function trailHtml(st){
  return STEPS.map((s,i)=>{const status=st.status[s.key]||'wait',open=i<=st.seen&&written(st,i)&&i!==st.current;
-  return `<button type="button" class="tseg ${status}${s.core?' core':''}${i===st.current?' current':''}" data-mstep="${i}"${open?'':' disabled'} aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}" title="${s.name}"><i></i></button>`;}).join('');
+  return `<button type="button" class="tstep ${status}${s.core?' core':''}${i===st.current?' current':''}" data-mstep="${i}"${open?'':' disabled'} aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}"><i aria-hidden="true"></i><span>${s.name}</span></button>`;}).join('');
 }
 function panelHtml(st){
  const i=st.current,s=STEPS[i],status=st.status[s.key]||'wait',d=st.steps[s.key];
@@ -766,7 +813,11 @@ function updateMethod(root,{animate=0}={}){
  const st=methodViews.get(root);if(!st)return;
  // the status line is read aloud when it changes, so it is rewritten only then
  const head=root.querySelector('[data-mhead]'),headHtml=methodHead(st);if(head.dataset.html!==headHtml){head.innerHTML=headHtml;head.dataset.html=headHtml;}
- root.querySelector('[data-mtrail]').innerHTML=trailHtml(st);
+ // while the analysis is being written the step glows; the path keeps the current step in sight on a narrow screen
+ root.classList.toggle('live',!st.result);
+ const trail=root.querySelector('[data-mtrail]');trail.innerHTML=trailHtml(st);
+ const here=trail.querySelector('.current');
+ if(here&&trail.scrollWidth>trail.clientWidth){const tr=trail.getBoundingClientRect(),hr=here.getBoundingClientRect();trail.scrollLeft+=hr.left-tr.left-(tr.width-hr.width)/2;}
  const s=STEPS[st.current],stage=root.querySelector('[data-mstage]');
  const sig=JSON.stringify([st.current,st.status[s.key]||'',st.steps[s.key]??null,st.checks[s.key]??null,written(st,st.current+1),s.key==='review'||s.key==='step11_answer'?[st.rounds,st.phase,st.review,st.status.step11_answer]:0,s.key==='governing_rules'?Boolean(st.result):0]);
  if(stage.dataset.sig===sig)return;
@@ -842,15 +893,13 @@ document.addEventListener('click',async e=>{
  if(b.hasAttribute('data-mstart')){const root=b.closest('[data-method]');methodViews.get(root).seen=0;goStep(root,0);} // walked again from the start, one step at a time
  if(b.hasAttribute('data-mfollow')){const root=b.closest('[data-method]'),st=methodViews.get(root);st.follow=true;
   const reached=STEPS.reduce((last,s,i)=>written(st,i)?i:last,0);st.seen=Math.max(st.seen,reached);goStep(root,reached);st.follow=true;updateMethod(root);}
- if(b.hasAttribute('data-retry-drafts')){const all=document.querySelector('input[name=rules-source][value=all]');if(all){all.checked=true;$('#diagnose-form').requestSubmit($('#diagnose-submit'));}}
+ if(b.hasAttribute('data-retry-drafts')){const text=b.closest('.thread')?.querySelector('.msg.me p')?.textContent||'';await showThread(null);$('#diagnose-text').value=text;document.querySelector('input[name=rules-source][value=all]').checked=true;$('#diagnose-form').requestSubmit($('#diagnose-submit'));}
  if(b.id==='history-more')await refreshHistory(true);
- if(b.dataset.diag){if($('#my-history')?.classList.contains('selecting')){const cb=b.parentElement.querySelector('[data-pick]');cb.checked=!cb.checked;updatePicks();}else await openAnalysis(b.dataset.diag);}
- if(b.dataset.select==='start'){$('#my-history').classList.add('selecting');updatePicks();}
- if(b.dataset.select==='done'){$('#my-history').classList.remove('selecting');document.querySelectorAll('[data-pick]').forEach(x=>x.checked=false);$('#pick-all').checked=false;updatePicks();}
- if(b.dataset.select==='delete'){const ids=[...document.querySelectorAll('[data-pick]:checked')].map(x=>x.dataset.pick);
-  if(ids.length&&await confirmBox({title:`حذف ${arCount(ids.length,['تحليل واحد','تحليلين','تحليلات','تحليلًا','تحليل'])}؟`,message:'ستُحذف من سجلك نهائيًا، ولا يمكن استرجاعها.',confirm:'حذف',danger:true})){
-   const r=await api('/diagnoses/delete',{method:'POST',body:{ids}});$('#my-history').classList.remove('selecting');$('#pick-all').checked=false;notify(r.deleted===1?'حُذف تحليل واحد.':`حُذفت ${arCount(r.deleted,['تحليل واحد','تحليلان','تحليلات','تحليلًا','تحليل'])}.`);await refreshHistory();}}
- if(b.dataset.deleteOne&&await confirmBox({title:'حذف هذا التحليل؟',message:'سيُحذف من سجلك نهائيًا، ولا يمكن استرجاعه.',confirm:'حذف',danger:true})){await api('/diagnoses/'+b.dataset.deleteOne,{method:'DELETE'});closeDialog($('#editor'));notify('حُذف التحليل من سجلك.');refreshHistory().catch(()=>{});}
+ if(b.dataset.diag)await openAnalysis(b.dataset.diag);
+ if(b.hasAttribute('data-chat-new'))await showThread(null);
+ if(b.hasAttribute('data-chat-list'))$('#chat')?.classList.toggle('list-open');
+ if(b.dataset.example){const t=$('#diagnose-text');if(t){t.value=b.dataset.example;fit(t);t.focus();}}
+ if(b.dataset.deleteOne){const gone=b.dataset.deleteOne;if(await confirmBox({title:'حذف هذا التحليل؟',message:'سيُحذف من سجلك نهائيًا مع أسئلته، ولا يمكن استرجاعه.',confirm:'حذف',danger:true})){await api('/diagnoses/'+gone,{method:'DELETE'});closeDialog($('#editor'));notify('حُذف التحليل من سجلك.');if(gone===chatActive)await showThread(null);refreshHistory().catch(()=>{});}}
  if(b.dataset.fbVerdict){const holder=b.closest('[data-fb]');let note='';if(b.dataset.fbVerdict==='wrong'){const r=await confirmBox({title:'ما الخطأ في التحليل؟',message:'ملاحظتك تُحفظ مع التحليل ليراجعها المختصون.',confirm:'إرسال',input:'مثال: القاعدة لا تناسب الشبهة، أو التشخيص معكوس'});if(!r)return;note=r.value;}
   await api('/diagnoses/'+holder.dataset.fb+'/feedback',{method:'POST',body:{verdict:b.dataset.fbVerdict,note}});holder.querySelectorAll('button').forEach(x=>x.classList.toggle('chosen',x===b));notify(b.dataset.fbVerdict==='wrong'?'شكرًا، سُجّلت ملاحظتك.':'شكرًا لتأكيدك.');}
  if(action==='duplicates'){b.disabled=true;await api('/duplicates',{method:'POST'});notify('اكتمل البحث عن المكرر، والاقتراحات تنتظر المراجعة.');}
@@ -888,21 +937,40 @@ document.addEventListener('submit',async e=>{
  }
  if(id==='ingest-form'){const form=new FormData();form.append('file',$('#pdf-file').files[0]);form.append('title',$('#pdf-title').value);form.append('author',$('#pdf-author').value);form.append('profile',$('#pdf-profile').value);notify('يجري استخراج الصفحات، وقد يستغرق ذلك عدة دقائق.');const r=await api('/ingest',{method:'POST',body:form});notify('سجلات جديدة بانتظار المراجعة: '+num(r.candidate_count));await render();}
  if(id==='diagnose-form'){
-  const body={text:$('#diagnose-text').value,include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all'};
-  const box=$('#diagnosis-result');box.innerHTML='<section class="method" data-method></section>';
-  const root=box.firstElementChild,st=newMethod(body.text);mountMethod(root,st);
-  root.scrollIntoView({behavior:calm()?'auto':'smooth',block:'start'});
+  const body={text:$('#diagnose-text').value.trim(),include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all'};
+  if(!body.text)return;
+  const thread=$('#thread');chatActive=null;markActive();
+  thread.innerHTML=conversationHtml(body.text,'');scrollTo(0,0);
+  const bot=thread.querySelector('.msg.bot.analysis'),root=bot.querySelector('[data-method]'),st=newMethod(body.text);mountMethod(root,st);
   let r;
-  try{r=await api('/diagnose/stream',{method:'POST',body,stream:event=>{const before=st.current;methodEvent(st,event);updateMethod(root,{animate:Math.sign(st.current-before)});}});}
-  catch(err){if(err.status!==404&&err.status!==405)throw err;r=await api('/diagnose',{method:'POST',body});} // a server without the live analysis
-  if(r.method){methodDone(st,r);updateMethod(root,{animate:1});root.insertAdjacentHTML('afterend',feedbackHtml(r));}
-  else box.innerHTML=diagnosisHtml(r,{retry:true});
-  refreshHistory().catch(()=>{});}
+  try{
+   try{r=await api('/diagnose/stream',{method:'POST',body,stream:event=>{const before=st.current;methodEvent(st,event);updateMethod(root,{animate:Math.sign(st.current-before)});}});}
+   catch(err){if(err.status!==404&&err.status!==405)throw err;r=await api('/diagnose',{method:'POST',body});} // a server without the live analysis
+  }catch(err){bot.innerHTML=`<div class="panel-wait"><p>${esc(err.message)}</p></div>`;refreshHistory().catch(()=>{});return;}
+  const here=root.isConnected;
+  if(r.method){methodDone(st,r);updateMethod(root,{animate:1});bot.querySelector('[data-after]').innerHTML=feedbackHtml(r);}
+  else bot.innerHTML=diagnosisHtml(r,{retry:true});
+  if(here&&r.id){chatActive=r.id;const foot=thread.querySelector('.thread-foot');if(foot&&r.method)foot.innerHTML=askHtml(r.id);}
+  await refreshHistory().catch(()=>{});markActive();}
+ if(id==='ask-form'){
+  const did=e.target.dataset.did,input=$('#ask-text'),question=input.value.trim();if(!did||!question)return;
+  input.value='';fit(input);
+  const turns=$('#turns');
+  turns.insertAdjacentHTML('beforeend',`<div class="msg me"><p>${esc(question)}</p></div><div class="msg bot"><div class="md thinking" role="status"><span class="dots" aria-label="يكتب الجواب"><i></i><i></i><i></i></span></div></div>`);
+  const out=turns.lastElementChild.querySelector('.md');out.scrollIntoView({block:'nearest',behavior:calm()?'auto':'smooth'});
+  const follow=()=>{if(innerHeight+scrollY>=document.documentElement.scrollHeight-180)scrollTo(0,document.documentElement.scrollHeight);};
+  let text='';
+  try{
+   const turn=await api(`/diagnoses/${did}/ask`,{method:'POST',body:{question},stream:ev=>{if(ev.type!=='delta')return;text+=ev.text;out.classList.remove('thinking');out.innerHTML=md(text);follow();}});
+   out.classList.remove('thinking');out.innerHTML=md(turn.answer);
+  }catch(err){out.classList.remove('thinking');out.innerHTML=`<p class="md-error">${esc(err.message)}</p>`;}
+  out.removeAttribute('role');
+ }
  if(id==='research-form'){const r=await api('/research',{method:'POST',body:{topic:$('#research-topic').value,limit:Number($('#research-limit').value)}});notify('حالات جديدة: '+num(r.record_ids.length)+'، ومصادر تعذر الوصول إليها: '+num(r.errors.length));await render();}
  if(id==='gate-form'){await api('/phase-two/enable',{method:'POST',body:{coverage_verified:$('#coverage-check').checked,notes:$('#coverage-notes').value}});notify('وُثّق اكتمال مراجعة الكتاب.');}
  if(id==='benchmark-form'){const ids=s=>$(s).value.split(/[\n,،]/).map(x=>x.trim()).filter(Boolean);await api('/benchmark',{method:'POST',body:{test_ids:ids('#test-ids'),validation_ids:ids('#validation-ids')}});notify('حُفظت مجموعة الاختبار.');await render();}
  if(id==='export-form'){const blob=await api('/export/'+$('#manifest').value,{method:'POST',blob:true});await download(blob,'manhaj-training.jsonl');await render();}
- }catch(err){notify(err.message,'error');if(e.target.id==='diagnose-form')$('#diagnosis-result').innerHTML='';}finally{if(button){button.disabled=false;button.classList.remove('busy');if(button.dataset.label){button.textContent=button.dataset.label;delete button.dataset.label;}}}
+ }catch(err){notify(err.message,'error');}finally{if(button){button.disabled=false;button.classList.remove('busy');if(button.dataset.label){button.textContent=button.dataset.label;delete button.dataset.label;}}}
 });
 // Enter in the search box searches; Enter in a one-line review field must not trigger "approve".
 document.addEventListener('change',e=>{if(e.target.closest('.attest .check')&&e.target.checked)e.target.closest('.check').classList.remove('missing');});
