@@ -579,6 +579,17 @@ class Store:
             c.execute(update(t).where(t.c.id == diagnosis_id).values(payload=payload))
         return payload['feedback']
 
+    def add_followup(self, reviewer_id, diagnosis_id, question, answer, keep=20):
+        """A question the reader asked about their own analysis, and its answer, kept with the analysis (newest last)."""
+        payload = self.my_diagnosis(reviewer_id, diagnosis_id)
+        payload.pop('id', None)
+        turn = {'question': question, 'answer': answer, 'at': now()}
+        payload['conversation'] = [*(payload.get('conversation') or []), turn][-keep:]
+        t = documents['diagnoses']
+        with self.engine.begin() as c:
+            c.execute(update(t).where(t.c.id == diagnosis_id).values(payload=payload))
+        return turn
+
     # ---------- Account profile ----------
     def account(self, account_id):
         with self.reader.connect() as c:
