@@ -570,7 +570,7 @@ $('#book').addEventListener('touchend',e=>{if(touchX===null)return;const dx=e.ch
 
 // ---------- The method: how Manhaj thinks when an objection arrives ----------
 // Eleven steps and, between the sixth and the seventh, the two governing rules. The analysis streams in,
-// so each step shows the moment it is written; the rail on the side is the path, the panel is the step.
+// so each step shows the moment it is written. One step at a time in the middle, reached in order; the answer last.
 const BOOK='كتاب «تربية الملكة على كشف الشبهة» للشيخ وليد بن راشد السعيدان';
 const STEPS=[
  {key:'step1_framing',mark:'1',ord:'الخطوة الأولى من إحدى عشرة',name:'تحرير الشبهة',tag:'تحويل كلام السائل إلى بنية منطقية واضحة'},
@@ -596,10 +596,10 @@ const ICON_SHIELD='<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="
 const ICON_LINK='<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m-11 5L21 3m-3 10v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
 const rulesWord=n=>arCount(n,['قاعدة واحدة','قاعدتين','قواعد','قاعدةً','قاعدة']);
 
-function newMethod(input){return {started:Date.now(),input,steps:{},status:{},checks:{},rounds:[],review:null,current:0,follow:true,phase:'gather',gathered:null,result:null,received:0};}
+function newMethod(input){return {started:Date.now(),input,steps:{},status:{},checks:{},rounds:[],review:null,current:0,seen:0,follow:true,phase:'gather',gathered:null,result:null,received:0};}
 function methodFromResult(r){
  const st=newMethod(r.input_ar);
- methodDone(st,r);st.follow=false;
+ methodDone(st,r);st.follow=false;st.seen=STEPS.length-1;
  return st;
 }
 // One event from the live analysis changes the state; the view redraws what changed.
@@ -617,9 +617,9 @@ function methodEvent(st,ev){
  }
  if((ev.type==='active'||ev.type==='step')&&st.phase==='retry')st.phase='analyze';
  if(ev.type==='active'&&st.status[ev.key]!=='done')st.status[ev.key]='active';
- if(ev.type==='step'){st.steps[ev.key]=ev.data;st.status[ev.key]=ev.key==='step11_answer'?'draft':'done';if(st.follow)st.current=stepAt(ev.key);}
+ if(ev.type==='step'){st.steps[ev.key]=ev.data;st.status[ev.key]=ev.key==='step11_answer'?'draft':'done';if(st.follow){st.current=stepAt(ev.key);st.seen=Math.max(st.seen,st.current);}}
  if(ev.type==='verified')st.checks[ev.key]=ev.checks;
- if(ev.type==='critic'){st.rounds.push(ev.data);st.status.review=ev.data.holds?'done':'fail';if(ev.data.holds)st.status.step11_answer='done';if(st.follow)st.current=stepAt('review');}
+ if(ev.type==='critic'){st.rounds.push(ev.data);st.status.review=ev.data.holds?'done':'fail';if(ev.data.holds)st.status.step11_answer='done';if(st.follow){st.current=stepAt('review');st.seen=Math.max(st.seen,st.current);}}
 }
 function methodDone(st,r){
  st.result=r;st.phase='done';st.library=r.library?.excerpts||st.library||[];st.web=r.web_search||null;
@@ -628,7 +628,7 @@ function methodDone(st,r){
  for(const s of STEPS)st.status[s.key]='done';
  if(!m.review||m.review.available===false)st.status.review='skip';
  else if(!m.review.holds)st.status.review='fail';
- if(st.follow)st.current=stepAt('step11_answer');
+ if(st.follow){st.current=stepAt('step11_answer');st.seen=st.current;}
 }
 
 function methodHead(st){
@@ -643,21 +643,46 @@ function methodHead(st){
  const active=STEPS.find(x=>st.status[x.key]==='active');
  const where={retry:'تعثّر الاتصال بالنموذج لحظة، فأُعيد التحليل تلقائيًا',gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة',library:'يبحث في المكتبة الشاملة: متون الحديث وشروحها ومعاجم اللغة',critic:'المراجع الناقد يفحص الجواب قبل إخراجه',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّحه'}[st.phase]||(st.searching&&!STEPS.some(x=>st.status[x.key]==='done')?'يبحث في المصادر الموثوقة على الإنترنت':active?active.name:'يقرأ الشبهة');
  const seen=[st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب`:'',st.library?.length?`وعلى ${arCount(st.library.length,['نص واحد','نصين','نصوص','نصًا','نص'])} من المكتبة الشاملة`:''].filter(Boolean).join(' ');
- const bar=STEPS.map(x=>`<i class="${st.status[x.key]||'wait'}${x.core?' core':''}"></i>`).join('');
- return `<div class="progress" role="group" aria-label="سير التحليل"><div class="progress-top"><div><small>يجري التحليل، الخطوة ${active?STEPS.indexOf(active)+1:Math.min(done+1,STEPS.length)} من ${STEPS.length}</small><b>${esc(where)}…</b></div><span class="elapsed" data-elapsed>${elapsedText(st)}</span></div><div class="progress-bar" aria-hidden="true">${bar}</div><p>${seen?esc(seen)+'. ':''}يكتمل التحليل عادة خلال دقيقة تقريبًا، وتظهر كل خطوة حين تُكتب.${st.follow?'':' <button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</p></div>`;
+ return `<div class="progress" role="group" aria-label="سير التحليل"><div class="progress-top"><div><small>يجري التحليل، الخطوة ${active?STEPS.indexOf(active)+1:Math.min(done+1,STEPS.length)} من ${STEPS.length}</small><b>${esc(where)}…</b></div><span class="elapsed" data-elapsed>${elapsedText(st)}</span></div><p>${seen?esc(seen)+'. ':''}يكتمل التحليل عادة خلال دقيقة تقريبًا، وتظهر كل خطوة حين تُكتب.${st.follow?'':' <button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</p></div>`;
 }
 const elapsedText=st=>{const sec=Math.max(0,Math.round((Date.now()-(st.started||Date.now()))/1000));return sec<60?arCount(sec,['ثانية واحدة','ثانيتان','ثوانٍ','ثانيةً','ثانية']):`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')} دقيقة`;};
 const RAIL_STATE={done:'اكتملت',active:'جارية الآن',draft:'صيغت وتنتظر المراجعة',fail:'لم يصمد الجواب',skip:'لم تُجرَ',wait:'لم تبدأ بعد'};
-function railHtml(st){
- return STEPS.map((s,i)=>{const status=st.status[s.key]||'wait';
-  const note=status==='active'?'<em>جارية</em>':status==='done'?'<em>✓</em>':status==='fail'?'<em>✗</em>':status==='draft'?'<em>تُراجَع</em>':'';
-  return `<li class="st ${status}${s.core?' core':''}${i===st.current?' current':''}"><button type="button" data-mstep="${i}" aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}"><span class="st-name">${s.core?'◆ ':''}${s.name}</span>${note}</button></li>`;}).join('');
+const written=(st,i)=>{const s=STEPS[i];if(!s)return false;if(s.key==='review')return st.rounds.length>0||['done','fail','skip'].includes(st.status.review);return st.steps[s.key]!==undefined;};
+function trailHtml(st){
+ return STEPS.map((s,i)=>{const status=st.status[s.key]||'wait',open=i<=st.seen&&written(st,i)&&i!==st.current;
+  return `<button type="button" class="tseg ${status}${s.core?' core':''}${i===st.current?' current':''}" data-mstep="${i}"${open?'':' disabled'} aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}" title="${s.name}"><i></i></button>`;}).join('');
 }
 function panelHtml(st){
  const i=st.current,s=STEPS[i],status=st.status[s.key]||'wait',d=st.steps[s.key];
+ if(s.key==='step11_answer'&&d!==undefined)return answerHtml(d,st);
  const body=s.key==='review'?reviewHtml(st):d!==undefined?STEP_VIEWS[s.key](d,st):waitingHtml(status);
- const prev=STEPS[i-1],next=STEPS[i+1];
- return `<article class="panel${s.core?' core':''}" aria-label="${s.name}"><header class="panel-head"><small class="panel-ord">${s.ord}</small><h3>${s.name}</h3><p>${esc(s.tag)}</p></header><div class="panel-body">${body}</div><footer class="panel-nav">${prev?`<button type="button" class="quiet" data-mnav="-1">السابق: ${prev.name}</button>`:'<span></span>'}${next?`<button type="button" class="quiet" data-mnav="1">التالي: ${next.name}</button>`:'<span></span>'}</footer></article>`;
+ const prev=STEPS[i-1],next=STEPS[i+1],ready=written(st,i+1),last=next?.key==='step11_answer';
+ const forward=!next?'<span></span>':ready?`<button type="button" class="primary" data-mnav="1">${last?'اعرض الجواب':`التالي: ${next.name}`}</button>`:`<button type="button" disabled class="waiting-next"><span class="pulse" aria-hidden="true"></span>تُكتب الخطوة التالية…</button>`;
+ return `<article class="panel${s.core?' core':''}" aria-label="${s.name}"><header class="panel-head"><small class="panel-ord">${s.ord}</small><h3>${s.name}</h3><p>${esc(s.tag)}</p></header><div class="panel-body">${body}</div><footer class="panel-nav">${prev?`<button type="button" class="quiet" data-mnav="-1">السابق</button>`:'<span></span>'}${forward}</footer></article>`;
+}
+// The answer is where the steps arrive: its own page, read as a whole, not one more step
+function answerHtml(d,st){
+ const lastRound=st.rounds[st.rounds.length-1],review=st.review||(lastRound?{available:true,holds:lastRound.holds}:null);
+ const reviewed=st.status.step11_answer==='draft'?'<span class="b-wait">بانتظار المراجع الناقد</span>':review?.available===false?'':review?.holds?`<span class="b-ok">${ICON_SHIELD} تمت مراجعة الاستدلال</span>`:review?'<span class="b-warn">بقيت ملاحظات على الاستدلال</span>':'';
+ const conf=Math.round(Math.min(1,Math.max(0,d.confidence||0))*100);
+ return `<article class="panel answer" aria-label="الجواب"><header class="answer-head"><small>${STEPS[STEPS.length-1].ord}: صياغة الجواب</small><h3>الجواب</h3>${d.summary?`<p class="answer-summary">${txt(d.summary)}</p>`:''}</header>
+ ${d.origin?`<section class="answer-origin"><h4>منشأ الإشكال</h4><p>${txt(d.origin)}</p></section>`:''}
+ ${(d.dismantling||[]).length?`<section><h4>تفكيك الشبهة</h4><ol class="answer-steps">${d.dismantling.map(x=>`<li><p>${txt(x.step)}</p>${x.evidence?`<small>الدليل: ${txt(x.evidence)}</small>`:''}</li>`).join('')}</ol></section>`:''}
+ <div class="answer-grid"><section><h4>الأدلة والمصادر</h4>${(d.sources||[]).filter(x=>String(x).trim()).length?`<ul class="answer-sources">${d.sources.filter(x=>String(x).trim()).map(x=>`<li>${txt(x)}</li>`).join('')}</ul>`:none}</section>
+ <section><h4>درجة الثقة</h4><div class="m-conf"><span class="conf-track"><i data-conf="${conf}"></i></span><span>${esc(CONF[d.confidence_label]||d.confidence_label||'')}</span></div></section></div>
+ ${d.disagreement?.trim()?`<section><h4>الخلاف في المسألة</h4><p>${txt(d.disagreement)}</p></section>`:''}
+ ${d.revealing_question?.trim()?`<blockquote class="answer-question"><small>سؤال يكشف الإشكال</small>${txt(d.revealing_question)}</blockquote>`:''}
+ ${st.web?.sources?.length?`<section><h4>مصادر البحث الموسّع</h4><ul class="m-web">${st.web.sources.map(x=>`<li><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title||x.url)} ${ICON_LINK}</a></li>`).join('')}</ul></section>`:''}
+ <div class="m-badges"><span class="b-gold">عند الخلاف: يُصرَّح به</span><span>لا يُصدر فتوى، ويُحيل إلى المختص</span>${reviewed}</div>
+ <footer class="panel-nav"><button type="button" class="quiet" data-mnav="-1">السابق: المراجع الناقد</button><button type="button" data-mstart>تتبّع التحليل من الخطوة الأولى</button></footer></article>`;
+}
+// the parts of a step rise in one after another: the rows of a list or grid, or the block itself
+function stagger(body){
+ let k=0;
+ for(const part of body.children){
+  const kids=part.children.length>1&&!/^(P|BLOCKQUOTE|H\d)$/.test(part.tagName)?[...part.children]:[part];
+  for(const x of kids){x.classList.add('rise');x.style.setProperty('--i',Math.min(k++,12));}
+ }
 }
 const waitingHtml=status=>status==='active'?'<div class="writing" role="status"><p><span class="pulse" aria-hidden="true"></span>تُكتب هذه الخطوة الآن، وتظهر هنا حين تكتمل.</p><i></i><i></i><i></i><i></i></div>':'<div class="panel-wait"><p>لم يصل التحليل إلى هذه الخطوة بعد، وستظهر هنا حين يكتبها.</p></div>';
 
@@ -736,34 +761,43 @@ function reviewHtml(st){
 }
 
 function mountMethod(root,st){methodViews.set(root,st);
- if(!st.result){const clock=setInterval(()=>{const el=root.querySelector('[data-elapsed]');if(st.result||!root.isConnected){clearInterval(clock);return;}if(el)el.textContent=elapsedText(st);},1000);}root.innerHTML=`<div class="method-head" data-mhead aria-live="polite"></div><div class="method-body"><ol class="rail" aria-label="خطوات التحليل" data-mrail></ol><div class="stage" data-mstage></div></div>`;updateMethod(root);}
+ if(!st.result){const clock=setInterval(()=>{const el=root.querySelector('[data-elapsed]');if(st.result||!root.isConnected){clearInterval(clock);return;}if(el)el.textContent=elapsedText(st);},1000);}root.innerHTML=`<div class="method-head" data-mhead aria-live="polite"></div><div class="method-body"><div class="trail" role="group" aria-label="خطوات التحليل" data-mtrail></div><div class="stage" data-mstage></div></div>`;updateMethod(root);}
 function updateMethod(root,{animate=0}={}){
  const st=methodViews.get(root);if(!st)return;
  // the status line is read aloud when it changes, so it is rewritten only then
  const head=root.querySelector('[data-mhead]'),headHtml=methodHead(st);if(head.dataset.html!==headHtml){head.innerHTML=headHtml;head.dataset.html=headHtml;}
- const rail=root.querySelector('[data-mrail]');rail.innerHTML=railHtml(st);
+ root.querySelector('[data-mtrail]').innerHTML=trailHtml(st);
  const s=STEPS[st.current],stage=root.querySelector('[data-mstage]');
- const sig=JSON.stringify([st.current,st.status[s.key]||'',st.steps[s.key]??null,st.checks[s.key]??null,s.key==='review'||s.key==='step11_answer'?[st.rounds,st.phase,st.review,st.status.step11_answer]:0,s.key==='governing_rules'?Boolean(st.result):0]);
- if(stage.dataset.sig!==sig){
-  stage.innerHTML=panelHtml(st);stage.dataset.sig=sig;
-  stage.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
-  if(animate){stage.classList.remove('to-next','to-prev');void stage.offsetWidth;stage.classList.add(animate>0?'to-next':'to-prev');}
- }
- // keep the current step in view on the phone's horizontal rail, without moving the page
- const current=rail.querySelector('.current');
- if(current&&rail.scrollWidth>rail.clientWidth){const rr=rail.getBoundingClientRect(),cr=current.getBoundingClientRect();rail.scrollBy({left:cr.left-rr.left-(rr.width-cr.width)/2,behavior:calm()?'auto':'smooth'});}
+ const sig=JSON.stringify([st.current,st.status[s.key]||'',st.steps[s.key]??null,st.checks[s.key]??null,written(st,st.current+1),s.key==='review'||s.key==='step11_answer'?[st.rounds,st.phase,st.review,st.status.step11_answer]:0,s.key==='governing_rules'?Boolean(st.result):0]);
+ if(stage.dataset.sig===sig)return;
+ stage.dataset.sig=sig;
+ const old=stage.querySelector('.panel:not(.leaving)');
+ stage.querySelectorAll('.panel.leaving').forEach(p=>p.remove());
+ const box=document.createElement('div');box.innerHTML=panelHtml(st);const panel=box.firstElementChild;
+ panel.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
+ // a new step: the one read slides back and away, the next comes in from the side and its parts rise in
+ if(animate&&old&&!calm()){
+  old.classList.add('leaving',animate>0?'to-next':'to-prev');old.setAttribute('inert','');old.setAttribute('aria-hidden','true');
+  setTimeout(()=>old.remove(),520);
+  panel.classList.add('entering',animate>0?'to-next':'to-prev');
+  stagger(panel.querySelector('.panel-body')||panel);
+  stage.append(panel);
+  const top=root.getBoundingClientRect().top;if(top<0)root.scrollIntoView({block:'start',behavior:'smooth'});
+ }else{old?.remove();stage.append(panel);}
 }
 function goStep(root,index){
  const st=methodViews.get(root);if(!st)return;
  const next=Math.min(STEPS.length-1,Math.max(0,index));if(next===st.current)return;
- const dir=Math.sign(next-st.current);st.current=next;st.follow=false;updateMethod(root,{animate:dir});
+ // forward only one step at a time and only to a written step; back to any step already reached
+ if(next>st.current&&(next>Math.max(st.seen,st.current+1)||!written(st,next)))return;
+ const dir=Math.sign(next-st.current);st.current=next;st.seen=Math.max(st.seen,next);st.follow=false;updateMethod(root,{animate:dir});
 }
 // Left and right arrows move along the path (right-to-left: left is the next step).
 document.addEventListener('keydown',e=>{
  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
- const root=e.target.closest?.('[data-method]');if(!root||!e.target.closest('.rail, .panel-nav'))return;
+ const root=e.target.closest?.('[data-method]');if(!root||!e.target.closest('.trail, .panel-nav'))return;
  e.preventDefault();const st=methodViews.get(root);goStep(root,st.current+(e.key==='ArrowLeft'?1:-1));
- root.querySelector('.rail .current button')?.focus({preventScroll:true});
+ root.querySelector('.panel:not(.leaving) .panel-nav [data-mnav]')?.focus({preventScroll:true});
 });
 const abstentions={
  no_approved_methodology:['لم تُعتمد قواعد تناسب هذه الشبهة بعد','يستند التحليل إلى قواعد الكتاب المعتمدة وحدها، ولم يُعتمد منها بعد ما ينطبق على هذه الشبهة. يمكنك إعادة التحليل بكل قواعد الكتاب، وتُعلَّم النتيجة «مسودة».'],
@@ -805,8 +839,9 @@ document.addEventListener('click',async e=>{
  if(action==='close-auth')closeDialog($('#auth'));
  if(b.dataset.mstep!==undefined)goStep(b.closest('[data-method]'),Number(b.dataset.mstep));
  if(b.dataset.mnav)goStep(b.closest('[data-method]'),methodViews.get(b.closest('[data-method]')).current+Number(b.dataset.mnav));
+ if(b.hasAttribute('data-mstart')){const root=b.closest('[data-method]');methodViews.get(root).seen=0;goStep(root,0);} // walked again from the start, one step at a time
  if(b.hasAttribute('data-mfollow')){const root=b.closest('[data-method]'),st=methodViews.get(root);st.follow=true;
-  const reached=STEPS.reduce((last,s,i)=>['done','draft','fail'].includes(st.status[s.key])?i:last,0);goStep(root,reached);st.follow=true;updateMethod(root);}
+  const reached=STEPS.reduce((last,s,i)=>written(st,i)?i:last,0);st.seen=Math.max(st.seen,reached);goStep(root,reached);st.follow=true;updateMethod(root);}
  if(b.hasAttribute('data-retry-drafts')){const all=document.querySelector('input[name=rules-source][value=all]');if(all){all.checked=true;$('#diagnose-form').requestSubmit($('#diagnose-submit'));}}
  if(b.id==='history-more')await refreshHistory(true);
  if(b.dataset.diag){if($('#my-history')?.classList.contains('selecting')){const cb=b.parentElement.querySelector('[data-pick]');cb.checked=!cb.checked;updatePicks();}else await openAnalysis(b.dataset.diag);}
@@ -903,14 +938,7 @@ function deckWindow(s,k){
  const body=s.key==='review'?reviewHtml(DEMO):STEP_VIEWS[s.key](DEMO.steps[s.key],DEMO);
  return `<article class="win" data-win="${k}" aria-label="${s.name}"><div class="win-bar"><span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span><b>${s.name}</b><span class="win-tag">مثال توضيحي</span></div><div class="win-body">${body}</div></article>`;
 }
-// the parts of a window rise in one after another: the rows of a list or grid, or the block itself
-function riseParts(w){
- let k=0;
- for(const part of w.querySelector('.win-body').children){
-  const kids=part.children.length>1&&!/^(P|BLOCKQUOTE|H\d)$/.test(part.tagName)?[...part.children]:[part];
-  for(const x of kids){x.classList.add('rise');x.style.setProperty('--i',Math.min(k++,12));}
- }
-}
+const riseParts=w=>stagger(w.querySelector('.win-body'));
 function showDeck(index){
  const deck=$('#deck');if(!deck)return;
  deckAt=(index+STEPS.length)%STEPS.length;
