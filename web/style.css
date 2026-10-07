@@ -158,23 +158,14 @@ td button:hover{border-color:transparent;background:#164b3d1f}
 
 .lead-note{color:var(--muted);font-size:14px;margin:0 0 18px}
 .banner{border:1px solid #e3d7bb;background:#fbf5e8;padding:13px 18px;border-radius:var(--radius);color:#7a5c2b;margin-bottom:18px;font-size:13.5px}
-/* Notification banner in Apple's manner: thick frosted material, app icon, app name and time, the message.
-   Slides down from the top, swipe up or tap × to dismiss. */
-
+/* Notifications share the alert's card (below): the same material, words and hairline, with «حسنًا» to close.
+   They come in as an alert does (a soft zoom), sit at the top without dimming the page, and leave by themselves;
+   a swipe up dismisses them too. */
 #notice:not(:popover-open){display:none}
 #notice[hidden]{display:none}
-
-#notice .notice-text{min-width:0}
-#notice .notice-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;line-height:1.5;color:#6e6e73}
-#notice .notice-meta b{font-weight:600;color:#3a3a3c}
-#notice p{margin:1px 0 0;font-size:14px;line-height:1.55;font-weight:500;color:#1d1d1f}
-#notice.error p{color:#b3261e}
-#notice.error .notice-meta b::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#e5484d;margin-inline-start:6px;vertical-align:1px}
-
-
-#notice:popover-open,#notice:not([hidden]){animation:banner-in .45s cubic-bezier(.2,.9,.25,1.15)}
-#notice.leaving{opacity:0;transform:translate(-50%,-14px);transition:opacity .2s ease,transform .2s ease}
-@keyframes banner-in{from{opacity:0;transform:translate(-50%,-110%)}to{opacity:1;transform:translate(-50%,0)}}
+#notice:popover-open,#notice:not([hidden]){animation:notice-in .26s cubic-bezier(.2,.9,.3,1.1)}
+#notice.leaving{opacity:0;transform:translateX(-50%) scale(.96);transition:opacity .2s ease,transform .2s ease}
+@keyframes notice-in{from{opacity:0;transform:translateX(-50%) scale(1.08)}to{opacity:1;transform:translateX(-50%)}}
 /* Alert in Apple's manner: compact, centred text, buttons split by hairlines; Cancel leads, the action trails */
 dialog.alert{width:min(300px,calc(100vw - 48px));border:0;border-radius:16px;padding:0;overflow:hidden;background:#f9f9f7eb;-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);box-shadow:0 22px 60px #00000040}
 dialog.alert::backdrop{background:#0000004d;backdrop-filter:none}
@@ -378,6 +369,8 @@ button.big{min-height:50px;padding:10px 28px;font-size:15.5px}
 #records-table.refresh tbody,#records-table.refresh .empty{animation:fade-in .22s ease-out both}
 #diagnosis-result>*,#history>*{animation:fade-in .3s ease-out both}
 dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
+dialog.alert[open]{animation:alert-in .24s cubic-bezier(.2,.9,.3,1.1)} /* an alert arrives with a soft zoom, as on Apple's */
+@keyframes alert-in{from{opacity:0;transform:scale(1.08)}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after,::backdrop{animation:none!important;transition:none!important}}
 
 /* Responsive */
@@ -1002,16 +995,14 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .gate-foot{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px}
 .gate-foot p{flex:1 1 260px;font-size:13.5px;line-height:1.8;color:var(--muted)}
 
-/* Notifications in the manner of Apple's: one frosted material, no outline, the icon as it is */
-#notice{position:fixed;inset:12px auto auto 50%;transform:translateX(-50%);margin:0;border:0;padding:9px 10px 9px 12px;width:min(340px,calc(100vw - 24px));
-  display:grid;grid-template-columns:auto 1fr auto;align-items:start;gap:10px;color:#1d1d1f;border-radius:16px;overflow:visible;user-select:none;touch-action:none;
-  background:#fbfbfdd9;-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);box-shadow:0 6px 24px #0000001f,0 0 0 .5px #0000000f;font-family:var(--ui)}
-#notice .notice-app{width:24px;height:24px;margin-top:2px;border-radius:6px}
-#notice .notice-meta{font-size:11.5px}
-#notice p{font-size:13.5px;line-height:1.5;font-weight:400}
-#notice .notice-close{min-height:0;width:22px;height:22px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;background:#0000000d;color:#6e6e73;transition:background-color .2s ease,color .2s ease}
-#notice .notice-close svg{width:11px;height:11px}
-#notice .notice-close:hover{background:#0000001a;color:#1d1d1f}
+/* The notification card: the alert's own material and proportions, at the top of the window */
+#notice{position:fixed;inset:16px auto auto 50%;transform:translateX(-50%);margin:0;border:0;padding:0;width:min(300px,calc(100vw - 48px));overflow:hidden;
+  border-radius:16px;background:#f9f9f7eb;-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);
+  box-shadow:0 14px 44px #00000030,0 0 0 .5px #0000001a;color:#1d1d1f;font-family:var(--ui);user-select:none;touch-action:none}
+#notice .alert-body{padding:18px 18px 14px}
+#notice .alert-body h3+p{margin-top:4px}
+.alert-actions.one{grid-template-columns:1fr}
+.alert-actions.one button{font-weight:600}
 
 /* Sign-in in the manner of Apple's forms: filled fields, no browser tint, the password readable on demand */
 .auth-card label{font-size:13.5px;font-weight:600;color:#1d1d1f;margin-top:14px}
@@ -1119,22 +1110,31 @@ body.immersed .land-bar{transform:translateY(-100%)}
    the button and the list it moves are always on the same side. Hidden, the list folds into a slim rail that keeps
    those two buttons in the very same place; the change is one animated motion of the column, the rows fading as
    it narrows and coming back as it widens. Dragging the line between them sets the width. */
-.chat{display:grid;grid-template-columns:minmax(0,1fr) 15px var(--list-w,250px);column-gap:12px;align-items:start;margin-top:-10px;
-  transition:grid-template-columns .42s var(--ease-sheet)}
-.chat.list-folded{grid-template-columns:minmax(0,1fr) 15px 36px}
+@property --side{syntax:'<length>';inherits:true;initial-value:0px}
+.chat{--side:calc(var(--list-w,250px) + 39px);position:relative;display:grid;grid-template-columns:minmax(0,1fr) 15px var(--list-w,250px);column-gap:12px;align-items:start;margin-top:-10px;
+  transition:grid-template-columns .42s var(--ease-sheet),--side .42s var(--ease-sheet)}
+.chat.list-folded{--side:91px;grid-template-columns:minmax(0,1fr) 15px 52px}
+/* The first screen's scholar's desk (an open book, a reed pen and inkwell, a balance) lies under the whole workspace,
+   from the page's edge to the menu and from the header line to the foot, the list floating over it; a soft veil keeps
+   the middle of the thread quiet for the question (--side moves the veil with the list). It fades as a thread opens. */
+.chat::before{content:'';position:absolute;z-index:-1;inset:-16px -44px -64px -44px;pointer-events:none;opacity:0;transition:opacity .45s ease;
+  background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 58% 64% at calc(50% + var(--side) / 2) 44%,#faf9f5f0 0%,#faf9f5c4 52%,#faf9f500 82%),url(/static/img/analyze-desk-2560.webp) center bottom/cover no-repeat}
+.chat:has(>.thread>.thread-new)::before{opacity:1}
 body.resizing .chat{transition:none}
 .chat>.chat-list{grid-column:3;grid-row:1}
 .chat>.chat-split{grid-column:2;grid-row:1}
 .chat>.thread{grid-column:1;grid-row:1}
 .chat-split{position:sticky;top:16px;align-self:stretch;max-height:calc(100vh - 32px);display:flex;justify-content:center;cursor:col-resize;touch-action:none;border-radius:4px}
-.chat-split::before{content:'';width:1px;height:100%;background:var(--line);transition:background-color .2s ease,width .2s ease}
+/* no line is drawn between the floating list and the thread; it shows while the pointer is on it or it is dragged */
+.chat-split::before{content:'';width:1px;height:100%;background:transparent;transition:background-color .2s ease,width .2s ease}
 .chat-split::after{content:'';position:absolute;top:50%;width:5px;height:44px;margin-top:-22px;border-radius:3px;background:#c7d2c8;opacity:0;transition:opacity .2s ease,background-color .2s ease}
 .chat-split:hover::before,.chat-split.dragging::before,.chat-split:focus-visible::before{width:2px;background:var(--green-2)}
 .chat-split:hover::after,.chat-split.dragging::after,.chat-split:focus-visible::after{opacity:1}
 .chat-split.dragging::after{background:var(--green-2)}
 .chat-split:focus-visible{outline:0}
 body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
-.chat-list{position:sticky;top:16px;min-width:0;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 32px)}
+.chat-list{position:sticky;top:16px;align-self:stretch;min-width:0;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 32px);padding:8px;border-radius:18px;
+  background:#fbfaf6c4;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:0 0 0 1px #1c302c12,0 1px 2px #1c302c0a,0 14px 34px #1c302c10}
 .chat-list-head{position:relative;display:flex;align-items:center;min-height:36px;overflow:hidden}
 .chat-list-head h3{min-width:0;overflow:hidden;padding-inline:9px 44px;font-family:var(--ui);font-size:14px;font-weight:600;line-height:1.4;color:#3d4d47;white-space:nowrap;transition:opacity .2s ease}
 .chat-toggle{position:absolute;top:0;inset-inline-end:0;min-height:0;width:36px;height:36px;padding:0;border:0;border-radius:10px;display:grid;place-items:center;background:transparent;color:var(--muted)}
@@ -1184,11 +1184,7 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 .thread-error button{margin-top:10px}
 
 /* the first screen: one question, one box */
-.thread-new{position:relative;isolation:isolate;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 24px 9vh}
-/* a scholar's desk in morning light (an open book, a reed pen and inkwell, a balance) fills the area beside the list
-   from the header line to the page's foot; a soft veil keeps the middle quiet for the question */
-.thread-new::before{content:'';position:absolute;z-index:-1;inset:-16px -44px -64px -12px;
-  background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 60% 64% at 50% 44%,#faf9f5f0 0%,#faf9f5c4 52%,#faf9f500 82%),url(/static/img/analyze-desk-2560.webp) center bottom/cover no-repeat}
+.thread-new{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 24px 9vh}
 .thread-new img{margin-bottom:10px}
 .thread-new h2{font-size:34px;color:var(--green-deep)}
 .thread-new>p{max-width:52ch;margin-top:6px;color:var(--muted);line-height:1.9}
@@ -1257,7 +1253,8 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
   .chat,.chat.list-folded{grid-template-columns:minmax(0,1fr);gap:0;transition:none}
   .chat-split{display:none}
   .chat>.thread{grid-column:1}
-  .thread-new::before{inset:-16px -44px -64px}
+  .chat,.chat.list-folded{--side:0px}
+  .chat-list{-webkit-backdrop-filter:none;backdrop-filter:none;align-self:auto}
   /* the drawer slides in from the left, where the list stands on a wide screen and where its button is; a fixed box
      moved past the edge does not widen the page */
   .chat-list{position:fixed;inset:0 auto 0 0;z-index:30;width:min(320px,86vw);max-height:none;padding:14px 12px;background:var(--surface);
@@ -1298,8 +1295,8 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
   .turns,.thread-foot{width:auto}
 }
 
-@media(max-width:1100px){.thread-new::before{inset:-16px -24px -40px}}
+@media(max-width:1100px){.chat::before{inset:-16px -24px -40px -24px}}
 @media(max-width:760px){
   .thread-new{padding:16px 0 6vh}
-  .thread-new::before{inset:-16px -16px -36px;background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 96% 74% at 50% 42%,#faf9f5f2 0%,#faf9f5d4 62%,#faf9f500 90%),url(/static/img/analyze-desk-1280.webp) 20% bottom/cover no-repeat}
+  .chat::before{inset:-16px -16px -36px -16px;background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 96% 74% at 50% 42%,#faf9f5f2 0%,#faf9f5d4 62%,#faf9f500 90%),url(/static/img/analyze-desk-1280.webp) 20% bottom/cover no-repeat}
 }

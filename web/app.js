@@ -17,15 +17,17 @@ try{sessionStorage.removeItem('manhaj-token');}catch{}
 let token=remember.get(), ready=false, view='overview', offset=0, currentRecord=null, taxonomy={}, query='', status=null, caps={};
 const badge=s=>`<span class="pill ${s==='approved'?'':s==='rejected'?'rejected':'pending'}">${esc(statuses[s]||s)}</span>`;
 let noticeTimer;
-// A notification banner in the manner of Apple's: frosted material, the app's icon and name, the message.
+// A notification drawn exactly as the alerts are (the same card, words and hairline), so every message the site
+// shows looks alike: centred words and «حسنًا» under a hairline. It does not block the page and leaves by itself.
 // It lives in the browser's top layer (popover), so it always shows above an open window.
 function notify(message,kind='success'){
  const n=$('#notice');clearTimeout(noticeTimer);
  n.className='notice '+kind;n.setAttribute('role',kind==='error'?'alert':'status');
- n.innerHTML=`<img class="notice-app" src="/static/img/emblem.webp" alt="" width="34" height="34"><div class="notice-text"><div class="notice-meta"><b>مَنْهَج</b><span>الآن</span></div><p></p></div><button type="button" class="notice-close" aria-label="إغلاق الرسالة"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.4" d="M18 6 6 18M6 6l12 12"/></svg></button>`;
  // technical (non-Arabic) text never reaches the reader
  if(kind==='error'&&!/[؀-ۿ]/.test(message))message='حدث خطأ غير متوقع. حاول مرة أخرى.';
- n.querySelector('p').textContent=message;
+ n.innerHTML=`<div class="alert-body">${kind==='error'?'<h3>تعذّر ذلك</h3><p></p>':'<h3></h3>'}</div><div class="alert-actions one"><button type="button" class="notice-close">حسنًا</button></div>`;
+ n.querySelector(kind==='error'?'p':'h3').textContent=message;
+ n.classList.remove('leaving');
  if(n.showPopover){try{n.hidePopover();}catch{}n.showPopover();}else{(document.querySelector('dialog[open]')||document.body).appendChild(n);n.hidden=false;}
  noticeTimer=setTimeout(hideNotice,kind==='error'?8000:4500);
 }
