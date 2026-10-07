@@ -636,7 +636,7 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 /* ---------- The method: eleven steps and the two governing rules, as a path (analysis page and history window) ----------
    The rail is the path (numbered stations, ◆ for the governing rules); the panel shows one step at a time. */
 .method{scroll-margin-top:16px}
-.method-head{margin-bottom:16px}
+.method-head{margin-bottom:24px} /* room for the live glow, which never reaches the header */
 .method-head .analysis-by{margin:8px 2px 0}
 .method-live{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:#f3f6f1;border:1px solid #dfe7df;color:var(--green-deep);font-size:14px}
 .method-live p{flex:1}
@@ -959,10 +959,10 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 
 /* The live header: which step, how far along, how long */
 .progress{padding:14px 18px 12px;border:1px solid #dfe7df;border-radius:14px;background:#f5f8f3}
-.progress-top{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.progress-top{display:grid}
 .progress-top small{display:block;font-size:12.5px;color:var(--muted)}
 .progress-top b{display:block;font-family:var(--naskh);font-size:21px;line-height:1.6;color:var(--green-deep)}
-.elapsed{flex:none;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.elapsed{font-variant-numeric:tabular-nums}
 @keyframes sweep{to{background-position:-200% 0}}
 .progress p{font-size:13px;color:var(--muted)}
 .progress .quiet{font-size:13px}
@@ -1238,18 +1238,20 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 
 /* While the analysis is written the window's edge glows softly, in the manner of Siri. The glow is a ring only (its
    middle is cut away), so no colour can show through a window that is still opening; its colours drift by hue and it
-   breathes, both drawn by the graphics card. It steps aside while a window opens. */
+   breathes, both drawn by the graphics card. It steps aside while a window opens. The ring is a hairline and the
+   halo reaches only about 16px, less than the space kept around the window, so it never runs over the header above,
+   the list of steps beside it or the dividing line. */
 .method.live .stage{position:relative;isolation:isolate}
 .method.live .stage::before,.method.live .stage::after{content:'';position:absolute;z-index:-1;pointer-events:none;
   background:conic-gradient(from 210deg,#2f9e74,#86c9a8,#e7c47e,#ec9a8f,#b19be3,#6fb3e6,#2f9e74);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
   mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);transition:opacity .25s ease;will-change:filter}
-.method.live .stage::before{inset:-2px;padding:2px;border-radius:18px;animation:glow-ring 7s linear infinite}
-.method.live .stage::after{inset:-18px;padding:18px;border-radius:34px;animation:glow-soft 7s linear infinite}
+.method.live .stage::before{inset:-1.5px;padding:1.5px;border-radius:17.5px;animation:glow-ring 7s linear infinite}
+.method.live .stage::after{inset:-8px;padding:8px;border-radius:24px;animation:glow-soft 7s linear infinite}
 .method.live .stage:has(>.panel.expanding)::before,.method.live .stage:has(>.panel.expanding)::after{opacity:0}
 @keyframes glow-ring{to{filter:hue-rotate(360deg)}}
-@keyframes glow-soft{0%{filter:blur(14px) hue-rotate(0deg) opacity(.42)}50%{filter:blur(14px) hue-rotate(180deg) opacity(.68)}100%{filter:blur(14px) hue-rotate(360deg) opacity(.42)}}
-@media(prefers-reduced-motion:reduce){.method.live .stage::before{animation:none}.method.live .stage::after{animation:none;filter:blur(14px) opacity(.5)}}
+@keyframes glow-soft{0%{filter:blur(8px) hue-rotate(0deg) opacity(.32)}50%{filter:blur(8px) hue-rotate(180deg) opacity(.52)}100%{filter:blur(8px) hue-rotate(360deg) opacity(.32)}}
+@media(prefers-reduced-motion:reduce){.method.live .stage::before{animation:none}.method.live .stage::after{animation:none;filter:blur(8px) opacity(.4)}}
 
 @media(max-width:1280px){
   .chat,.chat.list-folded{grid-template-columns:minmax(0,1fr);gap:0;transition:none}
