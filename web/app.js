@@ -717,7 +717,7 @@ function methodHead(st){
  const active=STEPS.find(x=>st.status[x.key]==='active');
  const where={retry:'تعثّر الاتصال بالنموذج لحظة، فأُعيد التحليل تلقائيًا',gather:'يجمع قواعد الكتاب ذات الصلة بالشبهة',library:'يبحث في المكتبة الشاملة: متون الحديث وشروحها ومعاجم اللغة',critic:'المراجع الناقد يفحص الجواب قبل إخراجه',revise:'لم يصمد الجواب، فعاد إلى التحليل ليصحّحه'}[st.phase]||(st.searching&&!STEPS.some(x=>st.status[x.key]==='done')?'يبحث في المصادر الموثوقة على الإنترنت':active?active.name:'يقرأ الشبهة');
  const seen=[st.gathered?.rules?`اطّلع على ${rulesWord(st.gathered.rules)} من الكتاب`:'',st.library?.length?`وعلى ${arCount(st.library.length,['نص واحد','نصين','نصوص','نصًا','نص'])} من المكتبة الشاملة`:''].filter(Boolean).join(' ');
- return `<div class="progress" role="group" aria-label="سير التحليل"><div class="progress-top"><div><small>يجري التحليل، الخطوة ${active?STEPS.indexOf(active)+1:Math.min(done+1,STEPS.length)} من ${STEPS.length}</small><b>${esc(where)}…</b></div><span class="elapsed" data-elapsed>${elapsedText(st)}</span></div><p>${seen?esc(seen)+'. ':''}يكتمل التحليل عادة خلال دقيقة تقريبًا، وتظهر كل خطوة حين تُكتب.${st.follow?'':' <button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</p></div>`;
+ return `<div class="progress" role="group" aria-label="سير التحليل"><div class="progress-top"><div><small>يجري التحليل، الخطوة ${active?STEPS.indexOf(active)+1:Math.min(done+1,STEPS.length)} من ${STEPS.length}</small><b>${esc(where)}…</b></div><span class="elapsed" data-elapsed></span></div><p>${seen?esc(seen)+'. ':''}يكتمل التحليل عادة خلال دقيقة تقريبًا، وتظهر كل خطوة حين تُكتب.${st.follow?'':' <button type="button" class="quiet" data-mfollow>تابع التحليل مباشرة</button>'}</p></div>`;
 }
 const elapsedText=st=>{const sec=Math.max(0,Math.round((Date.now()-(st.started||Date.now()))/1000));return sec<60?arCount(sec,['ثانية واحدة','ثانيتان','ثوانٍ','ثانيةً','ثانية']):`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')} دقيقة`;};
 const RAIL_STATE={done:'اكتملت',active:'جارية الآن',draft:'صيغت وتنتظر المراجعة',fail:'لم يصمد الجواب',skip:'لم تُجرَ',wait:'لم تبدأ بعد'};
@@ -840,9 +840,10 @@ function updateMethod(root,{animate=0}={}){
  const st=methodViews.get(root);if(!st)return;
  // the status line is read aloud when it changes, so it is rewritten only then
  const head=root.querySelector('[data-mhead]'),headHtml=methodHead(st);if(head.dataset.html!==headHtml){head.innerHTML=headHtml;head.dataset.html=headHtml;}
+ const clock=head.querySelector('[data-elapsed]');if(clock)clock.textContent=elapsedText(st);
  // while the analysis is being written the step glows; the path keeps the current step in sight on a narrow screen
  root.classList.toggle('live',!st.result);
- const trail=root.querySelector('[data-mtrail]');trail.innerHTML=trailHtml(st);
+ const trail=root.querySelector('[data-mtrail]');syncTrail(trail,st);
  const here=trail.querySelector('.current');
  if(here&&trail.scrollWidth>trail.clientWidth){const tr=trail.getBoundingClientRect(),hr=here.getBoundingClientRect();trail.scrollLeft+=hr.left-tr.left-(tr.width-hr.width)/2;}
  const s=STEPS[st.current],stage=root.querySelector('[data-mstage]');
@@ -852,36 +853,52 @@ function updateMethod(root,{animate=0}={}){
  const old=stage.querySelector('.panel:not(.leaving)');
  stage.querySelectorAll('.panel.leaving').forEach(p=>p.remove());
  const box=document.createElement('div');box.innerHTML=panelHtml(st);const panel=box.firstElementChild;
+ panel.dataset.step=st.current;
  panel.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
+ // the same step with new details (a text checked, the next step written): only the parts that changed are swapped,
+ // so nothing on the page flickers or replays
+ if(!animate&&old&&old.dataset.step===panel.dataset.step&&old.children.length===panel.children.length&&baseClass(old)===baseClass(panel)){
+  [...panel.children].forEach((part,i)=>{const html=part.outerHTML,cur=old.children[i];if(partHtml.get(cur)!==html){partHtml.set(part,html);cur.replaceWith(part);}});
+  return;
+ }
+ for(const part of panel.children)partHtml.set(part,part.outerHTML);
  // a new step opens out of its own step in the list and its parts rise in; the window just read fades where it is
  if(animate&&old&&!calm()){
-  old.classList.remove('entering','expanding'); // a window that came in animated must now play its way out, not in again
+  old.classList.remove('entering','expanding','fade-in'); // a window that came in animated must now play its way out, not in again
+  old.getAnimations().forEach(a=>{if(a instanceof CSSAnimation)return;a.finish();});
   old.classList.add('leaving');old.setAttribute('inert','');old.setAttribute('aria-hidden','true');
-  setTimeout(()=>old.remove(),360);
+  setTimeout(()=>old.remove(),320);
   panel.classList.add('entering');
   stagger(panel.querySelector('.panel-body')||panel);
   stage.append(panel);
-  const top=root.getBoundingClientRect().top;if(top<0)root.scrollIntoView({block:'start',behavior:'smooth'});
-  openFromStep(panel,root.querySelector('[data-mtrail] .tstep.current'));
+  // the window opens where the reader can see it: if its top has gone above the screen, the page comes to it first
+  const top=stage.getBoundingClientRect().top;if(top<0)scrollTo(0,scrollY+top-16);
+  if(!openFromStep(panel,trail.querySelector('.tstep.current')))panel.classList.add('fade-in'); // no step to open from: a plain fade
  }else{old?.remove();stage.append(panel);}
 }
-// The window unfolds from its step: it starts as a narrow strip on the window's edge right beside the step (the list
-// stands at the window's side, or above it on a narrow screen) and opens to its full size. Nothing is scaled, so the
-// text never stretches; the final clip lies outside the window, so its corners and shadow are never cut.
+const partHtml=new WeakMap();
+const baseClass=el=>[...el.classList].filter(c=>!['entering','expanding','leaving','fade-in'].includes(c)).sort().join(' ');
+// The list of steps keeps its buttons; only what changed on each (state, place, availability) is updated, so the
+// step being written keeps its running light and nothing in the list flashes on every update
+function syncTrail(trail,st){
+ const box=document.createElement('div');box.innerHTML=trailHtml(st);
+ if(trail.children.length!==box.children.length){trail.replaceChildren(...box.children);return;}
+ [...box.children].forEach((fresh,i)=>{const cur=trail.children[i];
+  for(const name of ['class','aria-current','aria-label'])if(cur.getAttribute(name)!==fresh.getAttribute(name))cur.setAttribute(name,fresh.getAttribute(name));
+  cur.disabled=fresh.disabled;});
+}
+// The window grows out of its step, the way a window opens from its icon: it starts small at the step's place (on the
+// window's edge beside the list, or under the step when the list is above) and opens to its full size. Only scale and
+// opacity change, which the graphics card draws without repainting the page, so it stays smooth.
 function openFromStep(panel,step){
- if(!step||!panel.animate)return;
- const p=panel.getBoundingClientRect(),s=step.getBoundingClientRect();if(!p.width||!p.height)return;
- const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v)),strip=12;
- let t,r,b,l;
- if(s.left>=p.right-2||s.right<=p.left+2){ // the list beside the window
-  const h=Math.min(p.height,Math.max(s.height,30));t=clamp(s.top-p.top,0,p.height-h);b=p.height-t-h;
-  if(s.left>=p.right-2){r=0;l=p.width-strip;}else{l=0;r=p.width-strip;}
- }else{ // the list above the window
-  const w=Math.min(p.width,Math.max(s.width,64));l=clamp(s.left-p.left,0,p.width-w);r=p.width-l-w;t=0;b=p.height-strip;
- }
- panel.classList.add('expanding');
- panel.animate([{clipPath:`inset(${t}px ${r}px ${b}px ${l}px round 8px)`,opacity:.4},{clipPath:'inset(-28px -28px -28px -28px round 44px)',opacity:1}],
-  {duration:640,easing:'cubic-bezier(.45,0,.15,1)'}).finished.then(()=>panel.classList.remove('expanding'),()=>{});
+ if(!step||!panel.animate)return false;
+ const p=panel.getBoundingClientRect(),s=step.getBoundingClientRect();if(!p.width||!p.height||!s.width)return false;
+ const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v)),mid=clamp(s.top+s.height/2-p.top,0,p.height);
+ const [x,y]=s.left>=p.right-2?[p.width,mid]:s.right<=p.left+2?[0,mid]:[clamp(s.left+s.width/2-p.left,0,p.width),0];
+ panel.classList.add('expanding');panel.style.transformOrigin=`${Math.round(x)}px ${Math.round(y)}px`;
+ panel.animate([{transform:'scale(.06)',opacity:0},{transform:'scale(1)',opacity:1}],{duration:540,easing:'cubic-bezier(.2,.75,.25,1)'})
+  .finished.then(()=>{panel.classList.remove('expanding');panel.style.transformOrigin='';},()=>{});
+ return true;
 }
 function goStep(root,index){
  const st=methodViews.get(root);if(!st)return;
