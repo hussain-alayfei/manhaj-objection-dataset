@@ -853,16 +853,35 @@ function updateMethod(root,{animate=0}={}){
  stage.querySelectorAll('.panel.leaving').forEach(p=>p.remove());
  const box=document.createElement('div');box.innerHTML=panelHtml(st);const panel=box.firstElementChild;
  panel.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
- // a new step: the one read slides back and away, the next comes in from the side and its parts rise in
+ // a new step opens out of its own step in the list and its parts rise in; the window just read fades where it is
  if(animate&&old&&!calm()){
-  old.classList.remove('entering','to-next','to-prev'); // a window that came in animated must now play its way out, not in again
-  old.classList.add('leaving',animate>0?'to-next':'to-prev');old.setAttribute('inert','');old.setAttribute('aria-hidden','true');
-  setTimeout(()=>old.remove(),520);
-  panel.classList.add('entering',animate>0?'to-next':'to-prev');
+  old.classList.remove('entering','expanding'); // a window that came in animated must now play its way out, not in again
+  old.classList.add('leaving');old.setAttribute('inert','');old.setAttribute('aria-hidden','true');
+  setTimeout(()=>old.remove(),360);
+  panel.classList.add('entering');
   stagger(panel.querySelector('.panel-body')||panel);
   stage.append(panel);
   const top=root.getBoundingClientRect().top;if(top<0)root.scrollIntoView({block:'start',behavior:'smooth'});
+  openFromStep(panel,root.querySelector('[data-mtrail] .tstep.current'));
  }else{old?.remove();stage.append(panel);}
+}
+// The window unfolds from its step: it starts as a narrow strip on the window's edge right beside the step (the list
+// stands at the window's side, or above it on a narrow screen) and opens to its full size. Nothing is scaled, so the
+// text never stretches; the final clip lies outside the window, so its corners and shadow are never cut.
+function openFromStep(panel,step){
+ if(!step||!panel.animate)return;
+ const p=panel.getBoundingClientRect(),s=step.getBoundingClientRect();if(!p.width||!p.height)return;
+ const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v)),strip=12;
+ let t,r,b,l;
+ if(s.left>=p.right-2||s.right<=p.left+2){ // the list beside the window
+  const h=Math.min(p.height,Math.max(s.height,30));t=clamp(s.top-p.top,0,p.height-h);b=p.height-t-h;
+  if(s.left>=p.right-2){r=0;l=p.width-strip;}else{l=0;r=p.width-strip;}
+ }else{ // the list above the window
+  const w=Math.min(p.width,Math.max(s.width,64));l=clamp(s.left-p.left,0,p.width-w);r=p.width-l-w;t=0;b=p.height-strip;
+ }
+ panel.classList.add('expanding');
+ panel.animate([{clipPath:`inset(${t}px ${r}px ${b}px ${l}px round 8px)`,opacity:.4},{clipPath:'inset(-28px -28px -28px -28px round 44px)',opacity:1}],
+  {duration:640,easing:'cubic-bezier(.45,0,.15,1)'}).finished.then(()=>panel.classList.remove('expanding'),()=>{});
 }
 function goStep(root,index){
  const st=methodViews.get(root);if(!st)return;
