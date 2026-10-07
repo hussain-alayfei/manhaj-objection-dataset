@@ -334,7 +334,7 @@ const when=iso=>iso?new Date(iso).toLocaleString('ar-u-nu-latn',{day:'numeric',m
 const ICON_PLUS='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>';
 const ICON_SEND='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 19V5m-6 6l6-6l6 6"/></svg>';
 const ICON_TRASH='<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 7h16m-10 4v6m4-6v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
-const ICON_LIST='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" d="M4 6h16M4 12h16M4 18h10"/></svg>';
+const ICON_LIST='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></g></svg>';
 const EXAMPLES=['كيف يقول ﷺ: «سبعين خريفًا»، وفي حديث آخر: «مائة عام»؟ أليس هذا تناقضًا؟','كيف تُنفى رؤية الله بقوله تعالى: ﴿لا تدركه الأبصار﴾ وقد ثبتت في الآخرة؟','إذا كان الله قدّر المعصية، فلماذا يُحاسَب عليها العبد؟'];
 let chatActive=null,chatItems=[],chatDrafts=false;
 function dayGroup(iso){
@@ -351,8 +351,18 @@ function drawChatList(total){
  const box=$('#chat-items');if(!box)return;
  if(!chatItems.length){box.innerHTML='<p class="chat-none">لا تحليلات بعد. ستظهر هنا كل شبهة تحلّلها.</p>';$('#history-more').hidden=true;return;}
  let html='',group='';
- for(const d of chatItems){const g=dayGroup(d.created_at);if(g!==group){html+=`<h4 class="chat-group">${g}</h4>`;group=g;}html+=chatItem(d);}
+ for(const d of chatItems){const g=dayGroup(d.created_at);if(g!==group){html+=`<h4 class="chat-group" data-key="g:${g}">${g}</h4>`;group=g;}html+=chatItem(d);}
+ // Redrawn in place: each row that stays glides from where it was, a new one fades in at its place, and the first
+ // drawing of the list simply fades in
+ const keyOf=x=>x.dataset.key||x.dataset.chat,first=!box.querySelector('[data-key],[data-chat]');
+ const was=new Map([...box.children].filter(keyOf).map(x=>[keyOf(x),x.getBoundingClientRect().top]));
  box.innerHTML=html;$('#history-more').hidden=chatItems.length>=total;
+ if(calm()||!box.animate)return;
+ if(first){box.animate([{opacity:0},{opacity:1}],{duration:280,easing:'ease-out'});return;}
+ for(const x of box.children){const before=was.get(keyOf(x));
+  if(before===undefined){x.animate([{opacity:0,transform:'translateY(-6px)'},{opacity:1,transform:'none'}],{duration:420,delay:120,easing:'cubic-bezier(.2,.8,.2,1)',fill:'backwards'});continue;}
+  const dy=before-x.getBoundingClientRect().top;
+  if(Math.abs(dy)>1)x.animate([{transform:`translateY(${dy}px)`},{transform:'none'}],{duration:380,easing:'cubic-bezier(.2,.8,.2,1)'});}
 }
 async function refreshHistory(append=false){
  if(!$('#chat-items'))return;
@@ -367,23 +377,51 @@ async function analyzeView(){
  const s=await api('/summary').catch(()=>({rules_approved:0}));
  if(stale(seq))return;
  chatDrafts=!s.rules_approved; // with no approved rules yet, the book's candidate rules are the only useful source
- $('#content').innerHTML=`<div class="chat" id="chat"><aside class="chat-list" id="chat-list" aria-label="تحليلاتك"><button type="button" class="chat-new" data-chat-new>${ICON_PLUS}<span>تحليل جديد</span></button><div class="chat-items" id="chat-items" role="navigation" aria-label="سجل تحليلاتك"></div><button type="button" class="quiet chat-more" id="history-more" hidden>عرض المزيد</button></aside><div class="chat-split" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="chat-list" aria-valuemin="0" aria-valuemax="440" aria-label="عرض قائمة التحليلات: اسحب لتوسيعها أو تضييقها، وانقر مرتين لإرجاعها" title="اسحب لتغيير عرض القائمة، وانقر مرتين لإرجاعها"></div><button type="button" class="chat-scrim" data-chat-list tabindex="-1" aria-label="إغلاق قائمة التحليلات"></button><section class="thread" id="thread"></section></div>`;
- const saved=listWidth.get();setListWidth(saved===-1?0:saved||LIST_DEFAULT,false);
+ $('#content').innerHTML=`<div class="chat" id="chat"><aside class="chat-list" id="chat-list" aria-label="سجل التحليلات"><div class="chat-list-head"><h3>التحليلات</h3><button type="button" class="chat-toggle" data-chat-list aria-controls="chat-list" aria-expanded="true">${ICON_LIST}</button></div><button type="button" class="chat-new" data-chat-new title="تحليل جديد">${ICON_PLUS}<span>تحليل جديد</span></button><div class="chat-items" id="chat-items" role="navigation" aria-label="سجل تحليلاتك"></div><button type="button" class="quiet chat-more" id="history-more" hidden>عرض المزيد</button></aside><div class="chat-split" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="chat-list" aria-valuemin="0" aria-valuemax="440" aria-label="عرض قائمة التحليلات: اسحب لتوسيعها أو تضييقها، وانقر مرتين لإرجاعها" title="اسحب لتغيير عرض القائمة، وانقر مرتين لإرجاعها"></div><button type="button" class="chat-scrim" data-chat-list tabindex="-1" aria-label="إغلاق قائمة التحليلات"></button><section class="thread" id="thread"></section></div>`;
+ const saved=listWidth.get();setListWidth(saved<0?0:saved||LIST_DEFAULT,false);
  showThread(chatActive).catch(err=>notify(err.message,'error'));
  try{await refreshHistory();}catch(err){if(!stale(seq))$('#chat-items').innerHTML=`<p class="chat-none">${esc(err.message)}</p>`;}
 }
-// The line between the list and the thread: drag it to widen or narrow the list, or past its edge to fold it away;
-// a double click (or Enter) brings back the usual width. The choice is remembered on this device.
+// The line between the list and the thread: drag it to widen or narrow the list, or past its edge to fold it into a
+// slim rail; a double click (or Enter) brings back the usual width. The list's own button folds and unfolds it in
+// place, so the control and the list always stand on the same side. The choice is remembered on this device
+// (a negative number keeps the width a folded list will open to).
 const LIST_MIN=200,LIST_MAX=440,LIST_DEFAULT=250;
-const listWidth={get(){try{return Number(localStorage.getItem('manhaj-chat-w'))||0;}catch{return 0;}},set(v){try{localStorage.setItem('manhaj-chat-w',String(v));}catch{}}};
+const listWidth={get(){try{return Number(localStorage.getItem('manhaj-chat-w'))||0;}catch{return 0;}},set(v){try{localStorage.setItem('manhaj-chat-w',String(v));}catch{}},
+ open(){const v=Math.abs(this.get());return v>=LIST_MIN&&v<=LIST_MAX?v:LIST_DEFAULT;}};
+const drawerMode=()=>matchMedia('(max-width:1280px)').matches;
 function setListWidth(w,save=true){
  const chat=$('#chat');if(!chat)return;
  const folded=w<LIST_MIN*.7,width=folded?0:Math.round(Math.min(LIST_MAX,Math.max(LIST_MIN,w)));
- chat.style.setProperty('--list-w',width+'px');chat.classList.toggle('list-folded',folded);
+ if(!folded)chat.style.setProperty('--list-w',width+'px');
+ chat.classList.toggle('list-folded',folded);
  chat.querySelector('.chat-split')?.setAttribute('aria-valuenow',String(width));
- if(save)listWidth.set(folded?-1:width);
+ if(save)listWidth.set(folded?-listWidth.open():width);
+ labelListToggle();
 }
 const listNow=()=>{const chat=$('#chat');return chat.classList.contains('list-folded')?0:parseInt(getComputedStyle(chat).getPropertyValue('--list-w'))||LIST_DEFAULT;};
+// The list's button says what it will do: show or hide on a wide screen, open or close the drawer on a narrow one
+function labelListToggle(){
+ const chat=$('#chat');if(!chat)return;
+ const shown=drawerMode()?chat.classList.contains('list-open'):!chat.classList.contains('list-folded');
+ chat.querySelectorAll('[data-chat-list]:not(.chat-scrim)').forEach(b=>{
+  const label=drawerMode()?(shown?'إغلاق قائمة التحليلات':'فتح قائمة التحليلات'):(shown?'إخفاء قائمة التحليلات':'إظهار قائمة التحليلات');
+  b.setAttribute('aria-expanded',String(shown));if(b.classList.contains('chat-toggle')){b.setAttribute('aria-label',label);b.title=label;}});
+}
+function setDrawer(open,{focus=true}={}){
+ const chat=$('#chat');if(!chat||chat.classList.contains('list-open')===open)return;
+ chat.classList.toggle('list-open',open);labelListToggle();
+ if(!focus)return;
+ if(open)setTimeout(()=>$('#chat-list .chat-toggle')?.focus({preventScroll:true}),60);
+ else $('#thread .thread-list-btn')?.focus({preventScroll:true});
+}
+function toggleList(){
+ const chat=$('#chat');if(!chat)return;
+ if(drawerMode()){setDrawer(!chat.classList.contains('list-open'));return;}
+ setListWidth(chat.classList.contains('list-folded')?listWidth.open():0);
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#chat')?.classList.contains('list-open')){e.preventDefault();setDrawer(false);}});
+addEventListener('resize',()=>{if(!drawerMode())$('#chat')?.classList.remove('list-open');labelListToggle();});
 document.addEventListener('pointerdown',e=>{
  const split=e.target.closest?.('.chat-split');if(!split||e.button!==0)return;
  e.preventDefault();split.setPointerCapture(e.pointerId);split.classList.add('dragging');document.body.classList.add('resizing');
@@ -396,9 +434,9 @@ document.addEventListener('dblclick',e=>{if(e.target.closest?.('.chat-split'))se
 document.addEventListener('keydown',e=>{
  if(!e.target.closest?.('.chat-split'))return;
  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const wider=e.key==='ArrowRight',now=listNow();setListWidth(now===0?(wider?LIST_MIN:0):now+(wider?24:-24));}
- if(e.key==='Enter'||e.key===' '){e.preventDefault();setListWidth(listNow()?0:LIST_DEFAULT);}
+ if(e.key==='Enter'||e.key===' '){e.preventDefault();setListWidth(listNow()?0:listWidth.open());}
 });
-const threadTop=open=>`<header class="thread-head"><button type="button" class="thread-list-btn" data-chat-list aria-label="قائمة التحليلات">${ICON_LIST}<span>التحليلات</span></button>${open?'<button type="button" class="thread-new-btn" data-chat-new>'+ICON_PLUS+'<span>تحليل جديد</span></button>':''}</header>`;
+const threadTop=open=>`<header class="thread-head">${open?'<button type="button" class="thread-new-btn" data-chat-new>'+ICON_PLUS+'<span>تحليل جديد</span></button>':''}<button type="button" class="thread-list-btn" data-chat-list aria-controls="chat-list" aria-expanded="false">${ICON_LIST}<span>التحليلات</span></button></header>`;
 function newThreadHtml(){
  return `${threadTop(false)}<div class="thread-new"><img src="/static/img/emblem.webp" alt="" width="52" height="52"><h2>ما الشبهة التي تريد تحليلها؟</h2><p>يحلّلها مَنْهَج في إحدى عشرة خطوة، من تحرير الدعوى إلى جواب موثّق بمصادره، ثم تسأله عمّا تشاء في تحليله.</p>
  <form id="diagnose-form" class="composer big"><label for="diagnose-text" class="sr-only">نص الشبهة</label><textarea id="diagnose-text" rows="3" required maxlength="12000" placeholder="اكتب الشبهة هنا…"></textarea>
@@ -413,20 +451,46 @@ function askHtml(did){
 function conversationHtml(input,did){
  return `${threadTop(true)}<div class="thread-body"><div class="msg me"><p>${esc(ar(input))}</p></div><div class="msg bot analysis"><section class="method" data-method></section><div data-after></div></div><div class="turns" id="turns"></div></div><div class="thread-foot">${askHtml(did)}</div>`;
 }
+// Moving between analyses reads as one motion: the open thread fades away, the next one fades in rising a little.
+// Only opacity and transform change, so the graphics card draws it without repainting the page.
+let threadSeq=0;
+// a motion is never waited on for longer than it should take (a hidden tab does not run animations)
+const settled=(anim,ms)=>Promise.race([anim.finished.catch(()=>{}),new Promise(r=>setTimeout(r,ms))]);
+function threadOut(thread){
+ thread.getAnimations().forEach(a=>a.cancel());
+ if(calm()||!thread.firstElementChild||!thread.animate)return Promise.resolve();
+ return settled(thread.animate([{opacity:1},{opacity:0}],{duration:140,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'}),200);
+}
+function threadIn(thread){
+ thread.getAnimations().forEach(a=>a.cancel());
+ if(!calm()&&thread.animate)thread.animate([{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'none'}],{duration:360,easing:'cubic-bezier(.2,.8,.2,1)'});
+}
 // One analysis in the thread, or a new one when no id is given; the list marks the open one
 async function showThread(id){
  const thread=$('#thread');if(!thread)return;
- chatActive=id||null;markActive();$('#chat')?.classList.remove('list-open');
- if(!id){thread.innerHTML=newThreadHtml();$('#diagnose-text')?.focus({preventScroll:true});scrollTo(0,0);return;}
- thread.innerHTML=`${threadTop(true)}<div class="thread-body"><div class="writing" role="status"><p>يُفتح التحليل…</p><i></i><i></i><i></i></div></div>`;
- const r=await api('/diagnoses/'+id);
- if(chatActive!==id||!thread.isConnected)return;
- thread.innerHTML=conversationHtml(r.input_ar,r.method?r.id:'');
- const bot=thread.querySelector('.msg.bot.analysis');
- if(r.method){mountMethod(bot.querySelector('[data-method]'),methodFromResult(r));bot.querySelector('[data-after]').innerHTML=feedbackHtml(r);}
- else bot.innerHTML=diagnosisHtml(r);
- $('#turns').innerHTML=(r.conversation||[]).map(turnHtml).join('');
- scrollTo(0,0);
+ const ticket=++threadSeq,first=!thread.firstElementChild,arrive=()=>{if(first)thread.getAnimations().forEach(a=>a.cancel());else threadIn(thread);};
+ chatActive=id||null;markActive();setDrawer(false,{focus:false});
+ const loading=id?api('/diagnoses/'+id):null;loading?.catch(()=>{}); // its error is shown once, below
+ await threadOut(thread);
+ const current=()=>ticket===threadSeq&&thread.isConnected;
+ if(!current())return;
+ if(!id){thread.innerHTML=newThreadHtml();arrive();$('#diagnose-text')?.focus({preventScroll:true});scrollTo(0,0);return;}
+ // a placeholder only when the analysis is slow to come, so a quick switch never flashes one
+ const slow=setTimeout(()=>{if(!current())return;thread.innerHTML=`${threadTop(true)}<div class="thread-body"><div class="writing" role="status"><p>يُفتح التحليل…</p><i></i><i></i><i></i></div></div>`;threadIn(thread);},180);
+ // whatever happens the thread comes back into view: the analysis, or a plain word on why it did not open
+ try{
+  const r=await loading;clearTimeout(slow);
+  if(!current()||chatActive!==id)return;
+  thread.innerHTML=conversationHtml(r.input_ar,r.method?r.id:'');
+  const bot=thread.querySelector('.msg.bot.analysis');
+  if(r.method){mountMethod(bot.querySelector('[data-method]'),methodFromResult(r));bot.querySelector('[data-after]').innerHTML=feedbackHtml(r);}
+  else bot.innerHTML=diagnosisHtml(r);
+  $('#turns').innerHTML=(r.conversation||[]).map(turnHtml).join('');
+ }catch(err){
+  clearTimeout(slow);if(!current())return;
+  thread.innerHTML=`${threadTop(true)}<div class="thread-body"><div class="thread-error" role="alert"><h3>تعذّر فتح هذا التحليل</h3><p>${esc(/[؀-ۿ]/.test(err?.message||'')?err.message:'حدث خطأ غير متوقع.')}</p><button type="button" data-diag="${esc(id)}">حاول مرة أخرى</button></div></div>`;
+ }
+ arrive();scrollTo(0,0);
 }
 async function openAnalysis(id){
  chatActive=id;
@@ -961,9 +1025,12 @@ document.addEventListener('click',async e=>{
  if(b.id==='history-more')await refreshHistory(true);
  if(b.dataset.diag)await openAnalysis(b.dataset.diag);
  if(b.hasAttribute('data-chat-new'))await showThread(null);
- if(b.hasAttribute('data-chat-list')){const chat=$('#chat');if(chat?.classList.contains('list-folded')&&!matchMedia('(max-width:1280px)').matches)setListWidth(LIST_DEFAULT);else chat?.classList.toggle('list-open');}
+ if(b.hasAttribute('data-chat-list'))toggleList();
  if(b.dataset.example){const t=$('#diagnose-text');if(t){t.value=b.dataset.example;fit(t);t.focus();}}
- if(b.dataset.deleteOne){const gone=b.dataset.deleteOne;if(await confirmBox({title:'حذف هذا التحليل؟',message:'سيُحذف من سجلك نهائيًا مع أسئلته، ولا يمكن استرجاعه.',confirm:'حذف',danger:true})){await api('/diagnoses/'+gone,{method:'DELETE'});closeDialog($('#editor'));notify('حُذف التحليل من سجلك.');if(gone===chatActive)await showThread(null);refreshHistory().catch(()=>{});}}
+ if(b.dataset.deleteOne){const gone=b.dataset.deleteOne;if(await confirmBox({title:'حذف هذا التحليل؟',message:'سيُحذف من سجلك نهائيًا مع أسئلته، ولا يمكن استرجاعه.',confirm:'حذف',danger:true})){await api('/diagnoses/'+gone,{method:'DELETE'});closeDialog($('#editor'));notify('حُذف التحليل من سجلك.');
+  const row=document.querySelector(`.chat-item[data-chat="${CSS.escape(gone)}"]`);
+  if(row&&!calm()&&row.animate){row.style.overflow='hidden';await settled(row.animate([{opacity:1,height:row.offsetHeight+'px'},{opacity:0,height:'0px'}],{duration:260,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'}),320);}
+  if(gone===chatActive)await showThread(null);refreshHistory().catch(()=>{});}}
  if(b.dataset.fbVerdict){const holder=b.closest('[data-fb]');let note='';if(b.dataset.fbVerdict==='wrong'){const r=await confirmBox({title:'ما الخطأ في التحليل؟',message:'ملاحظتك تُحفظ مع التحليل ليراجعها المختصون.',confirm:'إرسال',input:'مثال: القاعدة لا تناسب الشبهة، أو التشخيص معكوس'});if(!r)return;note=r.value;}
   await api('/diagnoses/'+holder.dataset.fb+'/feedback',{method:'POST',body:{verdict:b.dataset.fbVerdict,note}});holder.querySelectorAll('button').forEach(x=>x.classList.toggle('chosen',x===b));notify(b.dataset.fbVerdict==='wrong'?'شكرًا، سُجّلت ملاحظتك.':'شكرًا لتأكيدك.');}
  if(action==='duplicates'){b.disabled=true;await api('/duplicates',{method:'POST'});notify('اكتمل البحث عن المكرر، والاقتراحات تنتظر المراجعة.');}
@@ -1003,8 +1070,9 @@ document.addEventListener('submit',async e=>{
  if(id==='diagnose-form'){
   const body={text:$('#diagnose-text').value.trim(),include_drafts:document.querySelector('input[name=rules-source]:checked')?.value==='all'};
   if(!body.text)return;
-  const thread=$('#thread');chatActive=null;markActive();
-  thread.innerHTML=conversationHtml(body.text,'');scrollTo(0,0);
+  const thread=$('#thread');chatActive=null;markActive();threadSeq++;
+  await threadOut(thread);
+  thread.innerHTML=conversationHtml(body.text,'');threadIn(thread);scrollTo(0,0);
   const bot=thread.querySelector('.msg.bot.analysis'),root=bot.querySelector('[data-method]'),st=newMethod(body.text);mountMethod(root,st);
   let r;
   try{
@@ -1012,7 +1080,8 @@ document.addEventListener('submit',async e=>{
    catch(err){if(err.status!==404&&err.status!==405)throw err;r=await api('/diagnose',{method:'POST',body});} // a server without the live analysis
   }catch(err){bot.innerHTML=`<div class="panel-wait"><p>${esc(err.message)}</p></div>`;refreshHistory().catch(()=>{});return;}
   const here=root.isConnected;
-  if(r.method){methodDone(st,r);updateMethod(root,{animate:1});bot.querySelector('[data-after]').innerHTML=feedbackHtml(r);}
+  if(r.method){methodDone(st,r);updateMethod(root,{animate:1});const after=bot.querySelector('[data-after]');after.innerHTML=feedbackHtml(r);
+   if(!calm()&&after.animate)after.animate([{opacity:0},{opacity:1}],{duration:420,delay:380,easing:'ease-out',fill:'backwards'});} // after the answer has opened
   else bot.innerHTML=diagnosisHtml(r,{retry:true});
   if(here&&r.id){chatActive=r.id;const foot=thread.querySelector('.thread-foot');if(foot&&r.method)foot.innerHTML=askHtml(r.id);}
   await refreshHistory().catch(()=>{});markActive();}
@@ -1021,6 +1090,8 @@ document.addEventListener('submit',async e=>{
   input.value='';fit(input);
   const turns=$('#turns');
   turns.insertAdjacentHTML('beforeend',`<div class="msg me"><p>${esc(question)}</p></div><div class="msg bot"><div class="md thinking" role="status"><span class="dots" aria-label="يكتب الجواب"><i></i><i></i><i></i></span></div></div>`);
+  // the question and the answer's place rise in together, as a sent message does
+  if(!calm())[...turns.children].slice(-2).forEach((x,i)=>x.animate?.([{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'none'}],{duration:340,delay:i*90,easing:'cubic-bezier(.2,.8,.2,1)',fill:'backwards'}));
   const out=turns.lastElementChild.querySelector('.md');out.scrollIntoView({block:'nearest',behavior:calm()?'auto':'smooth'});
   const follow=()=>{if(innerHeight+scrollY>=document.documentElement.scrollHeight-180)scrollTo(0,document.documentElement.scrollHeight);};
   let text='';

@@ -32,6 +32,7 @@
   --ui:'IBM Plex Sans Arabic',Tahoma,'Segoe UI',sans-serif;
   --radius:10px;
   --fade:.2s ease;       /* one timing for every hover, focus and state change */
+  --ease-sheet:cubic-bezier(.32,.72,0,1); /* panels that slide or fold: quick to start, long soft landing */
 }
 
 *{box-sizing:border-box}
@@ -371,7 +372,9 @@ button.big{min-height:50px;padding:10px 28px;font-size:15.5px}
 @keyframes fade-in{from{opacity:0}to{opacity:1}}
 @keyframes fade-out{from{opacity:1}to{opacity:0}}
 @keyframes page-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-#content.page-in{animation:page-in .34s cubic-bezier(.2,.7,.2,1) both}
+/* backwards only: a transform left filling after the entrance would turn the page into the frame of every fixed
+   drawer inside it (the analyses list, its veil) and pin them to the page instead of the window */
+#content.page-in{animation:page-in .34s cubic-bezier(.2,.7,.2,1) backwards}
 #records-table.refresh tbody,#records-table.refresh .empty{animation:fade-in .22s ease-out both}
 #diagnosis-result>*,#history>*{animation:fade-in .3s ease-out both}
 dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
@@ -385,9 +388,10 @@ dialog[open],dialog[open]::backdrop{animation:fade-in .2s ease-out}
   .brand h1{font-size:30px}
   .brand img{width:38px;height:38px}
   main{margin-right:0;padding:0 16px 36px}
-  .sidebar{width:min(300px,86vw);transform:translateX(100%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s;z-index:40;padding:22px 14px 16px}
+  .sidebar{width:min(300px,86vw);transform:translateX(100%);visibility:hidden;z-index:40;padding:22px 14px 16px}
   body.nav-open .sidebar{transform:none;visibility:visible;transition-delay:0s;box-shadow:-24px 0 60px #0000002e}
-  body.nav-open #nav-backdrop{display:block;position:fixed;inset:0;background:#0000004d;z-index:39}
+  #nav-backdrop{display:block;position:fixed;inset:0;background:#0f1f1a4d;z-index:39;opacity:0;visibility:hidden;transition:opacity .32s ease,visibility 0s linear .32s}
+  body.nav-open #nav-backdrop{opacity:1;visibility:visible;transition-delay:0s}
   .method-band{margin:22px -16px 0;border-radius:0}
   .method-inner ol{grid-template-columns:1fr}
   main>header{height:56px;margin-bottom:18px}
@@ -505,19 +509,26 @@ dialog.profile{width:min(520px,94vw);max-height:90vh;border:0;border-radius:18px
 ::-webkit-scrollbar-thumb:hover{background:#9fae9e;border:3px solid transparent;background-clip:content-box}
 
 /* Header: sidebar toggle and where you are */
-#nav-backdrop{display:none}
+@media(min-width:761px){#nav-backdrop{display:none}} /* on a phone it is the menu drawer's veil */
 .crumbs{display:flex;align-items:center;gap:12px}
 .nav-toggle{min-height:0;width:38px;height:38px;padding:0;border:0;border-radius:10px;background:transparent;color:var(--muted);display:grid;place-items:center}
 .nav-toggle:hover{background:#ebefe9;color:var(--ink)}
-/* Collapsed sidebar: an icon rail */
-.sidebar,main{transition:width .25s ease,margin .25s ease,padding .25s ease}
+/* Collapsed sidebar: an icon rail. The menu narrows in one motion; the words fade and are clipped as it goes, while
+   the emblem, the icons and the avatar glide only a few pixels to the rail's middle, so nothing jumps. */
+.sidebar,main{transition:width .4s var(--ease-sheet),margin .4s var(--ease-sheet),padding .4s var(--ease-sheet)}
+.brand{overflow:hidden;transition:padding .4s var(--ease-sheet)}
+.brand h1{white-space:nowrap;transition:opacity .22s ease}
+nav button{white-space:nowrap;overflow:hidden;transition:background-color var(--fade),color .22s ease,padding .4s var(--ease-sheet)}
+.account-chip{overflow:hidden;transition:background-color var(--fade),padding .4s var(--ease-sheet)}
+.account-text,.account-chip>svg{transition:opacity .22s ease}
 body.nav-collapsed .sidebar{width:76px;padding-inline:12px}
 body.nav-collapsed main{margin-right:76px}
-body.nav-collapsed .brand{justify-content:center;padding-inline:0}
-body.nav-collapsed .brand h1,body.nav-collapsed .account-text,body.nav-collapsed .account-chip>svg{display:none}
-body.nav-collapsed nav button{font-size:0;padding:10px 0;text-align:center}
-body.nav-collapsed nav button span{width:auto}
-body.nav-collapsed .account-chip{justify-content:center;padding:8px 0}
+body.nav-collapsed .brand{padding-inline:3px 0}
+body.nav-collapsed .brand h1,body.nav-collapsed .account-text,body.nav-collapsed .account-chip>svg{opacity:0}
+body.nav-collapsed nav button,body.nav-collapsed nav button:hover,body.nav-collapsed nav button.active{color:transparent;padding-inline:17px 0}
+body.nav-collapsed .account-chip{padding-inline:6px 0}
+/* on a phone the menu is a drawer that slides in (set here, after the rail's timing, so it is not overridden) */
+@media(max-width:760px){.sidebar{transition:transform .42s var(--ease-sheet),visibility 0s linear .42s}}
 /* Avatars can carry a photo */
 .avatar-i{background-size:cover;background-position:center}
 .avatar-i.has-photo{background-color:#e9eee8}
@@ -1103,26 +1114,41 @@ body.immersed .land-bar{transform:translateY(-100%)}
 }
 
 
-/* ---------- Analyses as conversations: the list beside one open thread ---------- */
-.chat{display:grid;grid-template-columns:minmax(0,1fr) 15px var(--list-w,250px);column-gap:12px;align-items:start;margin-top:-10px}
-.chat.list-folded{column-gap:0}
+/* ---------- Analyses as conversations: the list beside one open thread ----------
+   The list of past analyses stands on the left with its own controls at its top (hide or show, new analysis), so
+   the button and the list it moves are always on the same side. Hidden, the list folds into a slim rail that keeps
+   those two buttons in the very same place; the change is one animated motion of the column, the rows fading as
+   it narrows and coming back as it widens. Dragging the line between them sets the width. */
+.chat{display:grid;grid-template-columns:minmax(0,1fr) 15px var(--list-w,250px);column-gap:12px;align-items:start;margin-top:-10px;
+  transition:grid-template-columns .42s var(--ease-sheet)}
+.chat.list-folded{grid-template-columns:minmax(0,1fr) 15px 36px}
+body.resizing .chat{transition:none}
 .chat>.chat-list{grid-column:3;grid-row:1}
 .chat>.chat-split{grid-column:2;grid-row:1}
 .chat>.thread{grid-column:1;grid-row:1}
-.chat.list-folded .chat-list{display:none}
 .chat-split{position:sticky;top:16px;align-self:stretch;max-height:calc(100vh - 32px);display:flex;justify-content:center;cursor:col-resize;touch-action:none;border-radius:4px}
 .chat-split::before{content:'';width:1px;height:100%;background:var(--line);transition:background-color .2s ease,width .2s ease}
 .chat-split::after{content:'';position:absolute;top:50%;width:5px;height:44px;margin-top:-22px;border-radius:3px;background:#c7d2c8;opacity:0;transition:opacity .2s ease,background-color .2s ease}
 .chat-split:hover::before,.chat-split.dragging::before,.chat-split:focus-visible::before{width:2px;background:var(--green-2)}
-.chat-split:hover::after,.chat-split.dragging::after,.chat-split:focus-visible::after,.chat.list-folded .chat-split::after{opacity:1}
+.chat-split:hover::after,.chat-split.dragging::after,.chat-split:focus-visible::after{opacity:1}
 .chat-split.dragging::after{background:var(--green-2)}
 .chat-split:focus-visible{outline:0}
-.chat.list-folded .thread-head{display:flex}
 body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
-.chat-list{position:sticky;top:16px;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 32px)}
-.chat-new{display:flex;align-items:center;gap:8px;justify-content:flex-start;min-height:42px;padding:8px 14px;border-color:#d6ddd5;background:#fffefa}
-.chat-new svg{color:var(--green)}
-.chat-items{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;padding-bottom:8px}
+.chat-list{position:sticky;top:16px;min-width:0;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 32px)}
+.chat-list-head{position:relative;display:flex;align-items:center;min-height:36px;overflow:hidden}
+.chat-list-head h3{min-width:0;overflow:hidden;padding-inline:9px 44px;font-family:var(--ui);font-size:14px;font-weight:600;line-height:1.4;color:#3d4d47;white-space:nowrap;transition:opacity .2s ease}
+.chat-toggle{position:absolute;top:0;inset-inline-end:0;min-height:0;width:36px;height:36px;padding:0;border:0;border-radius:10px;display:grid;place-items:center;background:transparent;color:var(--muted)}
+.chat-toggle:hover{background:#e6ebe4;color:var(--ink)}
+.chat-new{display:flex;align-items:center;gap:8px;justify-content:flex-start;min-width:0;min-height:38px;padding:7px 9px;border-color:#d6ddd5;background:#fffefa;overflow:hidden;white-space:nowrap}
+.chat-new svg{flex:none;color:var(--green)}
+.chat-new span{transition:opacity .2s ease}
+.chat-items{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;padding-bottom:8px;transition:opacity .22s ease .1s,visibility 0s linear 0s}
+.chat-more{transition:opacity .2s ease}
+/* the rail: the rows step aside at once, the words fade, the two buttons stay where they were */
+.chat.list-folded .chat-list-head h3,.chat.list-folded .chat-new span{opacity:0}
+.chat.list-folded .chat-new{border-color:transparent;background:transparent} /* in the rail both buttons are bare icons */
+.chat.list-folded .chat-new:hover{background:#e6ebe4}
+.chat.list-folded .chat-items,.chat.list-folded .chat-more{opacity:0;visibility:hidden;transition:opacity .12s ease,visibility 0s linear .12s}
 .chat-group{margin:16px 10px 4px;font-family:var(--ui);font-size:12px;font-weight:600;color:var(--muted)}
 .chat-item{position:relative;display:flex;align-items:center;border-radius:10px;transition:background-color var(--fade)}
 .chat-item:hover{background:#ecefe8}
@@ -1144,11 +1170,18 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 .chat-scrim{display:none}
 
 .thread{container:thread/inline-size;min-width:0;width:100%;display:flex;flex-direction:column;min-height:calc(100vh - 168px)}
-/* the list's own buttons stand in for these on a wide screen */
-.thread-head{position:relative;z-index:1;display:none;justify-content:space-between;gap:10px;margin-bottom:10px}
+/* the list's own buttons stand in for these on a wide screen; on a narrow one the list opens from the left, so
+   its button stands on the left and a new analysis on the right */
+.thread-head{position:relative;z-index:1;display:none;align-items:center;gap:10px;margin-bottom:10px}
 .thread-new-btn,.thread-list-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;font-size:13.5px}
+.thread-list-btn{margin-inline-start:auto}
 .thread-new-btn svg{color:var(--green)}
+.thread-list-btn svg{color:var(--muted)}
 .thread-body{flex:1;display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-content:start}
+.thread-error{justify-self:center;max-width:46ch;margin-top:12vh;text-align:center;display:grid;justify-items:center;gap:6px}
+.thread-error h3{font-size:22px;color:var(--green-deep)}
+.thread-error p{color:var(--muted);line-height:1.8}
+.thread-error button{margin-top:10px}
 
 /* the first screen: one question, one box */
 .thread-new{position:relative;isolation:isolate;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 24px 9vh}
@@ -1219,15 +1252,23 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 @media(prefers-reduced-motion:reduce){.method.live .stage::before{animation:none}.method.live .stage::after{animation:none;filter:blur(14px) opacity(.5)}}
 
 @media(max-width:1280px){
-  .chat,.chat.list-folded{grid-template-columns:minmax(0,1fr);gap:0}
+  .chat,.chat.list-folded{grid-template-columns:minmax(0,1fr);gap:0;transition:none}
   .chat-split{display:none}
   .chat>.thread{grid-column:1}
-  .chat.list-folded .chat-list{display:flex}
   .thread-new::before{inset:-16px -44px -64px}
-  /* the drawer opens from the start (right) side: hidden past that edge it cannot widen a right-to-left page */
-  .chat-list{position:fixed;inset:0 0 0 auto;z-index:30;width:min(300px,86vw);max-height:none;padding:16px 12px;background:var(--surface);box-shadow:-24px 0 60px #0000002e;transform:translateX(102%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s}
+  /* the drawer slides in from the left, where the list stands on a wide screen and where its button is; a fixed box
+     moved past the edge does not widen the page */
+  .chat-list{position:fixed;inset:0 auto 0 0;z-index:30;width:min(320px,86vw);max-height:none;padding:14px 12px;background:var(--surface);
+    border-radius:0 18px 18px 0;box-shadow:24px 0 60px #0000002e;transform:translateX(-104%);visibility:hidden;
+    transition:transform .42s var(--ease-sheet),visibility 0s linear .42s}
   .chat.list-open .chat-list{transform:none;visibility:visible;transition-delay:0s}
-  .chat.list-open .chat-scrim{display:block;position:fixed;inset:0;z-index:29;min-height:0;border:0;border-radius:0;background:#0000003d}
+  .chat.list-folded .chat-list-head h3,.chat.list-folded .chat-new span{opacity:1}
+  .chat.list-folded .chat-new{border-color:#d6ddd5;background:#fffefa}
+  .chat.list-folded .chat-items,.chat.list-folded .chat-more{opacity:1;visibility:inherit} /* hidden with the closed drawer */
+  .chat-scrim{display:block;position:fixed;inset:0;z-index:29;min-height:0;padding:0;border:0;border-radius:0;background:#0f1f1a47;opacity:0;visibility:hidden;
+    transition:opacity .32s ease,visibility 0s linear .32s}
+  .chat-scrim:hover{background:#0f1f1a47}
+  .chat.list-open .chat-scrim{opacity:1;visibility:visible;transition-delay:0s}
   .thread-head{display:flex}
 }
 @media(max-width:760px){
