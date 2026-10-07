@@ -367,10 +367,37 @@ async function analyzeView(){
  const s=await api('/summary').catch(()=>({rules_approved:0}));
  if(stale(seq))return;
  chatDrafts=!s.rules_approved; // with no approved rules yet, the book's candidate rules are the only useful source
- $('#content').innerHTML=`<div class="chat" id="chat"><aside class="chat-list" id="chat-list" aria-label="تحليلاتك"><button type="button" class="chat-new" data-chat-new>${ICON_PLUS}<span>تحليل جديد</span></button><div class="chat-items" id="chat-items" role="navigation" aria-label="سجل تحليلاتك"></div><button type="button" class="quiet chat-more" id="history-more" hidden>عرض المزيد</button></aside><button type="button" class="chat-scrim" data-chat-list tabindex="-1" aria-label="إغلاق قائمة التحليلات"></button><section class="thread" id="thread"></section></div>`;
+ $('#content').innerHTML=`<div class="chat" id="chat"><aside class="chat-list" id="chat-list" aria-label="تحليلاتك"><button type="button" class="chat-new" data-chat-new>${ICON_PLUS}<span>تحليل جديد</span></button><div class="chat-items" id="chat-items" role="navigation" aria-label="سجل تحليلاتك"></div><button type="button" class="quiet chat-more" id="history-more" hidden>عرض المزيد</button></aside><div class="chat-split" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="chat-list" aria-valuemin="0" aria-valuemax="440" aria-label="عرض قائمة التحليلات: اسحب لتوسيعها أو تضييقها، وانقر مرتين لإرجاعها" title="اسحب لتغيير عرض القائمة، وانقر مرتين لإرجاعها"></div><button type="button" class="chat-scrim" data-chat-list tabindex="-1" aria-label="إغلاق قائمة التحليلات"></button><section class="thread" id="thread"></section></div>`;
+ const saved=listWidth.get();setListWidth(saved===-1?0:saved||LIST_DEFAULT,false);
  showThread(chatActive).catch(err=>notify(err.message,'error'));
  try{await refreshHistory();}catch(err){if(!stale(seq))$('#chat-items').innerHTML=`<p class="chat-none">${esc(err.message)}</p>`;}
 }
+// The line between the list and the thread: drag it to widen or narrow the list, or past its edge to fold it away;
+// a double click (or Enter) brings back the usual width. The choice is remembered on this device.
+const LIST_MIN=200,LIST_MAX=440,LIST_DEFAULT=250;
+const listWidth={get(){try{return Number(localStorage.getItem('manhaj-chat-w'))||0;}catch{return 0;}},set(v){try{localStorage.setItem('manhaj-chat-w',String(v));}catch{}}};
+function setListWidth(w,save=true){
+ const chat=$('#chat');if(!chat)return;
+ const folded=w<LIST_MIN*.7,width=folded?0:Math.round(Math.min(LIST_MAX,Math.max(LIST_MIN,w)));
+ chat.style.setProperty('--list-w',width+'px');chat.classList.toggle('list-folded',folded);
+ chat.querySelector('.chat-split')?.setAttribute('aria-valuenow',String(width));
+ if(save)listWidth.set(folded?-1:width);
+}
+const listNow=()=>{const chat=$('#chat');return chat.classList.contains('list-folded')?0:parseInt(getComputedStyle(chat).getPropertyValue('--list-w'))||LIST_DEFAULT;};
+document.addEventListener('pointerdown',e=>{
+ const split=e.target.closest?.('.chat-split');if(!split||e.button!==0)return;
+ e.preventDefault();split.setPointerCapture(e.pointerId);split.classList.add('dragging');document.body.classList.add('resizing');
+ const at=ev=>$('#chat').getBoundingClientRect().right-ev.clientX; // the list sits on the right (start) side
+ const move=ev=>setListWidth(at(ev),false);
+ const up=ev=>{split.classList.remove('dragging');document.body.classList.remove('resizing');for(const [t,f] of [['pointermove',move],['pointerup',up],['pointercancel',up]])split.removeEventListener(t,f);setListWidth(at(ev));};
+ split.addEventListener('pointermove',move);split.addEventListener('pointerup',up);split.addEventListener('pointercancel',up);
+});
+document.addEventListener('dblclick',e=>{if(e.target.closest?.('.chat-split'))setListWidth(LIST_DEFAULT);});
+document.addEventListener('keydown',e=>{
+ if(!e.target.closest?.('.chat-split'))return;
+ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const now=listNow();setListWidth(now===0?(e.key==='ArrowLeft'?LIST_MIN:0):now+(e.key==='ArrowLeft'?24:-24));}
+ if(e.key==='Enter'||e.key===' '){e.preventDefault();setListWidth(listNow()?0:LIST_DEFAULT);}
+});
 const threadTop=open=>`<header class="thread-head"><button type="button" class="thread-list-btn" data-chat-list aria-label="قائمة التحليلات">${ICON_LIST}<span>التحليلات</span></button>${open?'<button type="button" class="thread-new-btn" data-chat-new>'+ICON_PLUS+'<span>تحليل جديد</span></button>':''}</header>`;
 function newThreadHtml(){
  return `${threadTop(false)}<div class="thread-new"><img src="/static/img/emblem.webp" alt="" width="52" height="52"><h2>ما الشبهة التي تريد تحليلها؟</h2><p>يحلّلها مَنْهَج في إحدى عشرة خطوة، من تحرير الدعوى إلى جواب موثّق بمصادره، ثم تسأله عمّا تشاء في تحليله.</p>
@@ -696,7 +723,7 @@ const elapsedText=st=>{const sec=Math.max(0,Math.round((Date.now()-(st.started||
 const RAIL_STATE={done:'اكتملت',active:'جارية الآن',draft:'صيغت وتنتظر المراجعة',fail:'لم يصمد الجواب',skip:'لم تُجرَ',wait:'لم تبدأ بعد'};
 const written=(st,i)=>{const s=STEPS[i];if(!s)return false;if(s.key==='review')return st.rounds.length>0||['done','fail','skip'].includes(st.status.review);return st.steps[s.key]!==undefined;};
 function trailHtml(st){
- return STEPS.map((s,i)=>{const status=st.status[s.key]||'wait',open=i<=st.seen&&written(st,i)&&i!==st.current;
+ return STEPS.map((s,i)=>{const status=st.status[s.key]||'wait',open=written(st,i)&&i!==st.current;
   return `<button type="button" class="tstep ${status}${s.core?' core':''}${i===st.current?' current':''}" data-mstep="${i}"${open?'':' disabled'} aria-current="${i===st.current?'step':'false'}" aria-label="${s.name}، ${RAIL_STATE[status]}"><i aria-hidden="true"></i><span>${s.name}</span></button>`;}).join('');
 }
 function panelHtml(st){
@@ -839,8 +866,8 @@ function updateMethod(root,{animate=0}={}){
 function goStep(root,index){
  const st=methodViews.get(root);if(!st)return;
  const next=Math.min(STEPS.length-1,Math.max(0,index));if(next===st.current)return;
- // forward only one step at a time and only to a written step; back to any step already reached
- if(next>st.current&&(next>Math.max(st.seen,st.current+1)||!written(st,next)))return;
+ // any step already written can be opened; one still being written cannot
+ if(!written(st,next))return;
  const dir=Math.sign(next-st.current);st.current=next;st.seen=Math.max(st.seen,next);st.follow=false;updateMethod(root,{animate:dir});
 }
 // Left and right arrows move along the path (right-to-left: left is the next step).
@@ -897,7 +924,7 @@ document.addEventListener('click',async e=>{
  if(b.id==='history-more')await refreshHistory(true);
  if(b.dataset.diag)await openAnalysis(b.dataset.diag);
  if(b.hasAttribute('data-chat-new'))await showThread(null);
- if(b.hasAttribute('data-chat-list'))$('#chat')?.classList.toggle('list-open');
+ if(b.hasAttribute('data-chat-list')){const chat=$('#chat');if(chat?.classList.contains('list-folded')&&innerWidth>1180)setListWidth(LIST_DEFAULT);else chat?.classList.toggle('list-open');}
  if(b.dataset.example){const t=$('#diagnose-text');if(t){t.value=b.dataset.example;fit(t);t.focus();}}
  if(b.dataset.deleteOne){const gone=b.dataset.deleteOne;if(await confirmBox({title:'حذف هذا التحليل؟',message:'سيُحذف من سجلك نهائيًا مع أسئلته، ولا يمكن استرجاعه.',confirm:'حذف',danger:true})){await api('/diagnoses/'+gone,{method:'DELETE'});closeDialog($('#editor'));notify('حُذف التحليل من سجلك.');if(gone===chatActive)await showThread(null);refreshHistory().catch(()=>{});}}
  if(b.dataset.fbVerdict){const holder=b.closest('[data-fb]');let note='';if(b.dataset.fbVerdict==='wrong'){const r=await confirmBox({title:'ما الخطأ في التحليل؟',message:'ملاحظتك تُحفظ مع التحليل ليراجعها المختصون.',confirm:'إرسال',input:'مثال: القاعدة لا تناسب الشبهة، أو التشخيص معكوس'});if(!r)return;note=r.value;}
