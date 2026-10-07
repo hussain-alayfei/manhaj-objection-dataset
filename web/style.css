@@ -668,15 +668,13 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .panel-wait{display:flex;align-items:center;gap:12px;margin-top:12px;padding:20px 18px;border-radius:12px;background:#f7f8f4;color:var(--muted);font-size:14.5px}
 .panel-wait.live{color:var(--green-deep)}
 /* Moving on: the step read steps back and away to the right, the next one comes in from the left (and the reverse) */
-.panel.leaving{position:absolute;inset:0 0 auto 0;pointer-events:none;z-index:0;animation:panel-out .42s cubic-bezier(.4,0,.6,1) forwards}
-.panel.leaving.to-prev{animation-name:panel-out-prev}
-.panel.entering{z-index:1;animation:panel-in .62s cubic-bezier(.16,1,.3,1) .06s both}
-.panel.entering.to-prev{animation-name:panel-in-prev}
-.panel.entering .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0)*45ms + 200ms)}
-@keyframes panel-out{to{opacity:0;transform:translateX(5%) scale(.95)}}
-@keyframes panel-out-prev{to{opacity:0;transform:translateX(-5%) scale(.95)}}
-@keyframes panel-in{from{opacity:0;transform:translateX(-6%) scale(.97)}}
-@keyframes panel-in-prev{from{opacity:0;transform:translateX(6%) scale(.97)}}
+/* Moving on: the next window opens out of its step in the list (drawn by the script); the one read fades where it is */
+.panel.leaving{position:absolute;inset:0 0 auto 0;pointer-events:none;z-index:0;animation:panel-fade-out .3s ease forwards}
+.panel.entering{z-index:1;animation:panel-fade-in .35s ease both}
+.panel.entering.expanding{animation:none}
+.panel.entering .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0)*45ms + 340ms)}
+@keyframes panel-fade-out{to{opacity:0;transform:scale(.985)}}
+@keyframes panel-fade-in{from{opacity:0}}
 .panel-nav{align-items:center}
 .panel-nav .primary{min-width:200px}
 .waiting-next{display:inline-flex;align-items:center;gap:10px;color:var(--muted);font-weight:400;background:#f7f8f4;border-color:transparent}
@@ -707,12 +705,10 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .answer-question small{display:block;font-family:var(--ui);font-size:12.5px;color:var(--amber);margin-bottom:2px}
 .panel.answer .m-badges{margin-top:24px;justify-content:center}
 /* its arrival: the gold rule is drawn, then the summary and the parts follow */
-.panel.answer.entering{animation-name:answer-in;animation-duration:.8s}
 .panel.answer.entering .answer-head::after{animation:rule-draw .9s cubic-bezier(.16,1,.3,1) .35s both}
 .panel.answer.entering .answer-head>*{animation:rise .7s cubic-bezier(.16,1,.3,1) both}
 .panel.answer.entering .answer-head h3{animation-delay:.12s}
 .panel.answer.entering .answer-summary{animation-delay:.24s}
-@keyframes answer-in{from{opacity:0;transform:translateY(28px) scale(.97)}}
 @keyframes rule-draw{from{transform:scaleX(0)}}
 @media(prefers-reduced-motion:reduce){.panel.entering,.panel.leaving,.panel.entering .rise,.panel.answer.entering .answer-head>*,.panel.answer.entering .answer-head::after{animation:none}}
 .none{color:#a3ada8}
