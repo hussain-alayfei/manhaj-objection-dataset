@@ -8,6 +8,6 @@ Generated for this project with the Slide Assets MCP (OpenAI image model) on 202
 
 - `tour-ground-2560.webp`, `tour-ground-1280.webp` (2026-10-07): soft daylight through a sheer curtain, pale sage and ivory, high key (the landing tour and the closing invitation).
 
-- `analyze-ground-1920.webp`, `analyze-ground-960.webp` (2026-10-07): a plain high-key gradient, pale sage and champagne on ivory (the first screen of «حلّل شبهة»).
+- `analyze-desk-2560.webp`, `analyze-desk-1280.webp` (2026-10-07): a scholar's desk in bright morning light, an open book, reed pen and inkwell, a brass balance and loose pages at the edges, the middle left empty (the first screen of «حلّل شبهة»).
 
 No text or figures appear in any image.
