@@ -48,7 +48,13 @@ class SupabaseStorage:
         self.key = key or os.getenv('SUPABASE_SECRET_KEY', '')
         self.bucket = bucket or os.getenv('SUPABASE_STORAGE_BUCKET', 'sources')
         if not self.url or not self.key: raise RuntimeError('STORAGE_BACKEND=supabase requires SUPABASE_URL and SUPABASE_SECRET_KEY')
-        self.client = client or httpx.Client(timeout=60)
+        self._client = client
+
+    @property
+    def client(self):
+        # built on first use, not at start-up: most requests never touch the bucket
+        if self._client is None: self._client = httpx.Client(timeout=60)
+        return self._client
 
     def _headers(self, extra=None):
         return {'apikey': self.key, **(extra or {})}

@@ -443,5 +443,6 @@ def diagnose(store, objection, analyst=None, retriever=None, exclude_ids=None, p
               'retrieved_rules': [{'id': r['id'], 'version': r['version'], 'review_status': r['review_status']} for r in rules],
               'retrieved_examples': [{'id': r['id'], 'version': r['version'], 'review_status': r['review_status']} for r in examples],
               'created_at': now(), 'human_review': None}
-    if persist: output['id'] = store.save_document('diagnoses', output)
+    if persist:
+        with store.engine.begin() as c: output['id'] = store.save_document('diagnoses', output, conn=c)
     return output

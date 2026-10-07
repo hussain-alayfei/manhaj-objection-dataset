@@ -50,7 +50,7 @@ class CompressExceptStreams:
     """Gzip for every response except the live streams (the analysis and the answers about it), whose small updates must reach the page as they happen."""
 
     def __init__(self, app):
-        self.app, self.gzip = app, GZipMiddleware(app, minimum_size=1024)
+        self.app, self.gzip = app, GZipMiddleware(app, minimum_size=1024, compresslevel=6)
 
     async def __call__(self, scope, receive, send):
         if scope['type'] == 'http' and (scope['path'] == '/api/diagnose/stream' or scope['path'].endswith('/ask')): return await self.app(scope, receive, send)
@@ -271,6 +271,12 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
             response.headers['Cache-Control'] = IMMUTABLE
         elif path.startswith('/static/'):
             response.headers['Cache-Control'] = 'no-cache'
+        elif path == '/' and response.status_code == 200:
+            # The page shell is identical for every visitor (built once at start, no per-user data, no nonce; the
+            # session lives in localStorage), so Vercel's edge near the reader serves it. Each deployment has its own
+            # edge cache, so a release is never hidden behind an old shell; browsers still ask every time.
+            response.headers['Cache-Control'] = 'public, max-age=0, must-revalidate'
+            response.headers['Vercel-CDN-Cache-Control'] = 'max-age=3600, stale-while-revalidate=604800'
         else:
             response.headers['Cache-Control'] = 'no-store'
         response.headers['Content-Security-Policy'] = csp
@@ -295,7 +301,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
 
     @app.get('/health')
     def health():
-        with store.engine.connect() as c: c.execute(select(1))
+        with store.reader.connect() as c: c.execute(select(1))
         return {'status': 'ok', 'service': 'manhaj'}
 
     @app.post('/api/auth/signup', status_code=201)
@@ -497,7 +503,7 @@ def create_app(store=None, token_map=None, *, hosted=None, read_only=None, stora
         return extract_with_model(store, sid)
 
     def source_payload(sid):
-        with store.engine.connect() as c: src = c.execute(select(sources.c.payload).where(sources.c.id == sid)).scalar_one_or_none()
+        with store.reader.connect() as c: src = c.execute(select(sources.c.payload).where(sources.c.id == sid)).scalar_one_or_none()
         if not src: raise HTTPException(404, 'Original PDF not available')
         return src
 

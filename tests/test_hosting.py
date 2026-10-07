@@ -161,6 +161,8 @@ def test_assets_are_cacheable_but_api_data_is_not(store):
     c = client(store)
     html = c.get('/').text
     assert '/static/app.js?v=' in html and '/static/style.css?v=' in html
+    shell = c.get('/')
+    assert shell.headers['cache-control'] == 'public, max-age=0, must-revalidate' and 'stale-while-revalidate' in shell.headers['vercel-cdn-cache-control']
     assert c.get('/static/fonts/amiri-400-arabic.woff2').headers['cache-control'] == 'public, max-age=31536000, immutable'
     assert c.get('/static/app.js?v=abc').headers['cache-control'] == 'public, max-age=31536000, immutable'
     api = c.get('/api/me', headers=AUTH)

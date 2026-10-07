@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import (JSON, BigInteger, Column, ForeignKey, Integer, MetaData, String, Table,
-                        UniqueConstraint, create_engine, delete, event, func, insert, inspect, literal, or_, select, union_all, update)
+                        UniqueConstraint, create_engine, delete, event, func, insert, literal, or_, select, union_all, update)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool, StaticPool
@@ -111,7 +111,7 @@ class Store:
             if os.getenv('VERCEL'):
                 # Fluid compute reuses warm instances: keep one or two pooler connections open instead of
                 # paying a new TCP+TLS handshake per request; pre-ping replaces connections the pooler closed.
-                opts.update(pool_pre_ping=True, pool_size=2, max_overflow=3, pool_recycle=300)
+                opts.update(pool_pre_ping=True, pool_size=2, max_overflow=3, pool_recycle=1800, pool_use_lifo=True)
             elif parsed.port == 6543:
                 opts['poolclass'] = NullPool
             else:
@@ -131,9 +131,9 @@ class Store:
             metadata.create_all(self.engine)
         else:
             # PostgreSQL schema is owned by supabase/migrations; never improvise tables at runtime.
-            with self.engine.connect() as c:
-                if not all(inspect(c).has_table(t) for t in ('semantic_vectors', 'accounts')):
-                    raise RuntimeError('Database schema missing: apply supabase/migrations before starting the app')
+            with self.reader.connect() as c:
+                present = c.exec_driver_sql("SELECT to_regclass('public.semantic_vectors') IS NOT NULL AND to_regclass('public.accounts') IS NOT NULL").scalar()
+            if not present: raise RuntimeError('Database schema missing: apply supabase/migrations before starting the app')
 
     def cached(self, key, compute, seconds=None):
         """Short in-process cache for list/summary reads; every write in this process clears it.
@@ -451,20 +451,20 @@ class Store:
         return [dict(r._mapping) for r in conn.execute(select(documents[kind]).order_by(documents[kind].c.id))]
 
     def get_document(self, kind, doc_id):
-        with self.engine.connect() as c:
+        with self.reader.connect() as c:
             row = c.execute(select(documents[kind]).where(documents[kind].c.id == doc_id)).mappings().one_or_none()
         if row is None: raise KeyError(doc_id)
         return dict(row)
 
     def document_ids(self, kind, ids):
         if not ids: return set()
-        with self.engine.connect() as c:
+        with self.reader.connect() as c:
             return set(c.execute(select(documents[kind].c.id).where(documents[kind].c.id.in_(list(ids)))).scalars())
 
     def count_documents(self, kind, field, value, since):
         """Count JSON documents whose payload[field]==value and payload['created_at']>=since."""
         t = documents[kind]
-        with self.engine.connect() as c:
+        with self.reader.connect() as c:
             if self.engine.dialect.name == 'postgresql':
                 q = select(func.count()).select_from(t).where(t.c.payload[field].as_string() == value, t.c.payload['created_at'].as_string() >= since)
                 return c.execute(q).scalar_one()
@@ -484,8 +484,8 @@ class Store:
 
     def account_by_email(self, email):
         with self.reader.connect() as c:
-            row = c.execute(select(accounts.c.id, accounts.c.password_hash, accounts.c.payload).where(accounts.c.email == email)).first()
-        return None if row is None else {'id': row.id, 'password_hash': row.password_hash, 'name': row.payload.get('name', '')}
+            row = c.execute(select(accounts.c.id, accounts.c.password_hash, accounts.c.payload['name'].as_string().label('name')).where(accounts.c.email == email)).first()
+        return None if row is None else {'id': row.id, 'password_hash': row.password_hash, 'name': row.name or ''}
 
     def create_session(self, account_id, days):
         token, at = new_token(), now_s()
@@ -501,9 +501,9 @@ class Store:
             hit = self._sessions.get(key)
         if hit and hit[0] > clock: return hit[1]
         with self.reader.connect() as c:
-            row = c.execute(select(accounts.c.id, accounts.c.email, accounts.c.payload).join(sessions, sessions.c.account_id == accounts.c.id)
+            row = c.execute(select(accounts.c.id, accounts.c.email, accounts.c.payload['name'].as_string().label('name')).join(sessions, sessions.c.account_id == accounts.c.id)
                             .where(sessions.c.token_hash == key, sessions.c.revoked_at.is_(None), sessions.c.expires_at > now_s())).first()
-        value = None if row is None else {'id': row.id, 'email': row.email, 'name': row.payload.get('name') or row.id}
+        value = None if row is None else {'id': row.id, 'email': row.email, 'name': row.name or row.id}
         with self._session_lock:
             if len(self._sessions) > 1024: self._sessions.clear()
             self._sessions[key] = (clock + (60 if value else 5), value)
