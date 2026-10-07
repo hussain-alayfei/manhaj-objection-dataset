@@ -86,6 +86,7 @@ python scripts/create_reviewer.py reviewer-03 --env-file .env.production.local -
 | `STORAGE_BACKEND` / `SUPABASE_URL` / `SUPABASE_SECRET_KEY` / `SUPABASE_STORAGE_BUCKET` | `supabase` / رابط المشروع / المفتاح السري / `sources` | `local` (دون المفتاح السري) |
 | `DIAGNOSE_DAILY_LIMIT` | `50` | `10` |
 | `DIAGNOSE_GLOBAL_DAILY_LIMIT` | `200` (كل الحسابات معًا) | — |
+| `ASK_DAILY_LIMIT` | `60` (أسئلة المتابعة لكل حساب، الافتراضي إن لم يُضبط) | — |
 | `SIGNUP_ENABLED` | `1` (أي شخص ينشئ حسابًا ويراجع) | `1` |
 | `ADMIN_EMAILS` | بريد مسؤول المشروع، مفصولًا بفواصل | — |
 
