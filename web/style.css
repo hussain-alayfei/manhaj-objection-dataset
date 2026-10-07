@@ -1110,7 +1110,7 @@ body.immersed .land-bar{transform:translateY(-100%)}
 .chat>.chat-split{grid-column:2;grid-row:1}
 .chat>.thread{grid-column:3;grid-row:1}
 .chat.list-folded .chat-list{display:none}
-.chat-split{position:sticky;top:16px;height:calc(100vh - 32px);display:flex;justify-content:center;cursor:col-resize;touch-action:none;border-radius:4px}
+.chat-split{position:sticky;top:16px;align-self:stretch;max-height:calc(100vh - 32px);display:flex;justify-content:center;cursor:col-resize;touch-action:none;border-radius:4px}
 .chat-split::before{content:'';width:1px;height:100%;background:var(--line);transition:background-color .2s ease,width .2s ease}
 .chat-split::after{content:'';position:absolute;top:50%;width:5px;height:44px;margin-top:-22px;border-radius:3px;background:#c7d2c8;opacity:0;transition:opacity .2s ease,background-color .2s ease}
 .chat-split:hover::before,.chat-split.dragging::before,.chat-split:focus-visible::before{width:2px;background:var(--green-2)}
@@ -1143,18 +1143,19 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 .chat-more{align-self:center;font-size:13px}
 .chat-scrim{display:none}
 
-.thread{container:thread/inline-size;min-width:0;max-width:1160px;width:100%;margin-inline:auto;display:flex;flex-direction:column;min-height:calc(100vh - 140px)}
+.thread{container:thread/inline-size;min-width:0;width:100%;display:flex;flex-direction:column;min-height:calc(100vh - 168px)}
 /* the list's own buttons stand in for these on a wide screen */
-.thread-head{display:none;justify-content:space-between;gap:10px;margin-bottom:10px}
+.thread-head{position:relative;z-index:1;display:none;justify-content:space-between;gap:10px;margin-bottom:10px}
 .thread-new-btn,.thread-list-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;font-size:13.5px}
 .thread-new-btn svg{color:var(--green)}
 .thread-body{flex:1;display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-content:start}
 
 /* the first screen: one question, one box */
-.thread-new{position:relative;isolation:isolate;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:6vh 0 32px}
-/* a light, quiet ground behind the first screen, fading into the page with no edge */
-.thread-new::before{content:'';position:absolute;z-index:-1;inset:-36px 0 -20px;background:url(/static/img/analyze-ground-1920.webp) center/cover no-repeat;
-  -webkit-mask-image:radial-gradient(ellipse 72% 70% at 50% 42%,#000 50%,transparent 100%);mask-image:radial-gradient(ellipse 72% 70% at 50% 42%,#000 50%,transparent 100%)}
+.thread-new{position:relative;isolation:isolate;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 24px 9vh}
+/* a scholar's desk in morning light (an open book, a reed pen and inkwell, a balance) fills the area beside the list
+   from the header line to the page's foot; a soft veil keeps the middle quiet for the question */
+.thread-new::before{content:'';position:absolute;z-index:-1;inset:-16px -12px -64px -44px;
+  background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 60% 64% at 50% 44%,#faf9f5f0 0%,#faf9f5c4 52%,#faf9f500 82%),url(/static/img/analyze-desk-2560.webp) center bottom/cover no-repeat}
 .thread-new img{margin-bottom:10px}
 .thread-new h2{font-size:34px;color:var(--green-deep)}
 .thread-new>p{max-width:52ch;margin-top:6px;color:var(--muted);line-height:1.9}
@@ -1177,15 +1178,15 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 .segmented.small{margin:0}
 .segmented.small span{padding:5px 12px;font-size:12.5px}
 .composer-note{margin-top:6px;text-align:center;font-size:12px;color:var(--muted)}
-.thread-foot{width:100%;max-width:860px;margin:28px auto 0;padding-bottom:12px}
+.thread-foot{width:100%;margin:28px 0 0;padding-bottom:12px}
 
 /* messages: the reader's question on its side, the answers in the page's own column */
 .msg.me{justify-self:start;max-width:min(78%,640px);padding:12px 18px;border-radius:20px 20px 6px 20px;background:#e6ede4;color:var(--ink)}
 .msg.me p{font-family:var(--naskh);font-size:18px;line-height:1.9;white-space:pre-wrap}
 .msg.bot{min-width:0}
-.turns{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;width:100%;max-width:860px;margin-inline:auto}
+.turns{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;width:100%}
 .turns:empty{display:none}
-.md{font-family:var(--naskh);font-size:18px;line-height:2;color:var(--ink)}
+.md{max-width:82ch;font-family:var(--naskh);font-size:18px;line-height:2;color:var(--ink)}
 .md>*+*{margin-top:10px}
 .md h4{margin-top:18px;font-family:var(--naskh);font-size:20px;color:var(--green-deep)}
 .md h4:first-child{margin-top:0}
@@ -1218,7 +1219,7 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
   .chat-split{display:none}
   .chat>.thread{grid-column:1}
   .chat.list-folded .chat-list{display:flex}
-  .thread-new::before{background-image:url(/static/img/analyze-ground-960.webp)}
+  .thread-new::before{inset:-16px -44px -64px}
   /* the drawer opens from the start (right) side: hidden past that edge it cannot widen a right-to-left page */
   .chat-list{position:fixed;inset:0 0 0 auto;z-index:30;width:min(300px,86vw);max-height:none;padding:16px 12px;background:var(--surface);box-shadow:-24px 0 60px #0000002e;transform:translateX(102%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s}
   .chat.list-open .chat-list{transform:none;visibility:visible;transition-delay:0s}
@@ -1245,4 +1246,9 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
   .tstep:last-child i{border-radius:0 0 2px 2px}
   .tstep.current i{width:5px;height:auto;margin:0;border-radius:3px}
   .tstep span{padding:7px 0;font-size:13.5px;line-height:1.5}
+}
+@media(max-width:1100px){.thread-new::before{inset:-16px -24px -40px}}
+@media(max-width:760px){
+  .thread-new{padding:16px 0 6vh}
+  .thread-new::before{inset:-16px -16px -36px;background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 96% 74% at 50% 42%,#faf9f5f2 0%,#faf9f5d4 62%,#faf9f500 90%),url(/static/img/analyze-desk-1280.webp) 20% bottom/cover no-repeat}
 }
