@@ -48,7 +48,7 @@ Untracked and private: `.env*`, `work/`, `.reviewer-token*`, `.venv/`, everythin
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1                    # Linux/macOS: source .venv/bin/activate
-python -m pip install -e ".[test]"
+python -m pip install -e ".[test,tools]"
 Copy-Item .env.example .env                   # only if .env does not exist; never overwrite it
 python scripts/create_reviewer.py reviewer-01 # operator token; the app will not start without one (or PUBLIC_ACCESS=1)
 uvicorn src.asgi:app --host 127.0.0.1 --port 8000
@@ -57,7 +57,7 @@ uvicorn src.asgi:app --host 127.0.0.1 --port 8000
 - `scripts/start_local.ps1` does the same in one go. Then create an account in the UI; put its email in `ADMIN_EMAILS` to get admin locally.
 - The UI signs in with email and password only. Operator tokens are `Authorization: Bearer` tokens for API and CLI use.
 - Tests: `pytest -q`. `conftest.py` clears provider/hosting env vars and blocks network for source checks. `tests/test_postgres.py` runs only with `TEST_POSTGRES_URL` (CI sets it).
-- CI (`verify`, on PRs and pushes to main): `pip install -e '.[test]'`, applies every `supabase/migrations/*.sql` to real Postgres 17 + pgvector, runs `pytest -q`, then runs `scripts/generate_schemas.py` and `scripts/generate_migration.py` and fails on any diff in `schemas/` or `supabase/migrations/`.
+- CI (`verify`, on PRs and pushes to main): `pip install -e '.[test,tools]'`, applies every `supabase/migrations/*.sql` to real Postgres 17 + pgvector, runs `pytest -q`, then runs `scripts/generate_schemas.py` and `scripts/generate_migration.py` and fails on any diff in `schemas/` or `supabase/migrations/`.
 - So: after changing `Record`, `Citation` or `ReviewRequest`, regenerate `schemas/` and commit. Never hand-edit `20261004000000_initial.sql`. A new table in `src/db.py` needs `info={'migration': '<version>_<name>'}` (see `accounts`, `sessions`, `events`) plus its own migration file.
 - Most record and analysis fields live in JSON `payload` columns, so a new field usually needs no migration.
 - `python scripts/verify_dataset.py` checks every stored quote against the extracted book text (needs the private database).
@@ -144,6 +144,14 @@ uvicorn src.asgi:app --host 127.0.0.1 --port 8000
 - Inject a mock script (keep it outside the repo) that replaces `window.fetch` for `/api/*`: `me`, `summary`, `diagnoses` list and detail, `diagnose/stream` (NDJSON events as above) and `diagnoses/{id}/ask` (NDJSON `delta` events). Set localStorage `manhaj-session` to any string so the app opens instead of the landing page.
 - In a hidden or minimized browser, CSS transitions and WAAPI animations do not advance. Before measuring layout, inject `*{transition:none!important}` and call `.finish()` on `document.getAnimations()`.
 - Check widths 1440, 1280, 1000, 760 and 375 px, and both list states (open, folded).
+
+## Performance notes
+
+- The hosted function installs only `[project].dependencies`; PDF reading and dataset checks live in the `tools` extra (local CLI, CI). Keep server imports of heavy libraries lazy, and keep anything a hosted endpoint imports (e.g. `bs4` via `src/research`) in the main dependencies.
+- `/` (the page shell) is edge-cached by Vercel (`Vercel-CDN-Cache-Control`), browsers revalidate; `/api/*` is always `no-store` (private, per user). Never edge-cache an API response.
+- Single reads use `store.reader` (autocommit, no BEGIN/ROLLBACK); writes use `store.transaction()` (global advisory lock + cache clear) only for review/governance data. Account/session queries never load `payload` whole (it holds the photo).
+- JSON keys in SQLAlchemy queries reach Postgres as parameters; expression indexes still match because unnamed statements are planned with their values (`tests/test_postgres.py` checks the history index).
+- Frontend: `warm(view)` starts a page's requests alongside `/api/me` and on hover/focus of a tab; paths in `VIEW_DATA` must equal the pages' own request paths so the 60 s cache answers. Photos are WebP q72-80 with `image-set()` 1x/2x; the logo file is 112px.
 
 ## Deployment
 

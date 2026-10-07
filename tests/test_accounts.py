@@ -23,6 +23,8 @@ def test_password_hashing_round_trip():
     assert stored.startswith('scrypt$') and 'correct horse' not in stored
     assert auth.check_password('correct horse', stored) and not auth.check_password('wrong', stored)
     assert not auth.check_password('x', 'garbage')
+    # the stand-in hash for unknown emails is well formed (so it costs a full check) but matches nothing
+    assert auth.DUMMY_HASH.split('$')[:4]==stored.split('$')[:4] and not auth.check_password('', auth.DUMMY_HASH)
 
 
 def test_signup_login_logout_and_roles(store):

@@ -30,7 +30,8 @@ def test_postgres_accounts_sessions_and_events():
     account=store.create_account('مراجع', email, auth.hash_password('pg-passphrase'))
     with pytest.raises(Conflict): store.create_account('مكرر', email, auth.hash_password('pg-passphrase'))
     token=store.create_session(account, 1)
-    assert store.session_account(token)['id']==account
+    assert store.session_account(token)['id']==account and store.session_account(token)['name']=='مراجع'
+    assert store.account_by_email(email)['name']=='مراجع'
     store.revoke_session(token)
     assert store.session_account(token) is None
     store.add_event('login_failed', 'pg-key')
@@ -59,5 +60,14 @@ def test_postgres_slim_lists_counts_and_history():
     assert store.history(rid)[-1]['snapshot']=={'version':2}
     assert store.activity('expert')['approved']>=1
     assert store.my_diagnoses('nobody')['total']==0
+    # the history list's own query (JSON keys sent as parameters) can use the owner/date index
+    from sqlalchemy import select
+    from src.db import documents
+    t=documents['diagnoses'];p=t.c.payload
+    q=select(t.c.id).where(p['requested_by'].as_string()=='nobody').order_by(p['created_at'].as_string().desc()).limit(30).compile(store.engine)
+    with store.engine.connect() as c:
+        c.exec_driver_sql('SET enable_seqscan = off')
+        plan=' | '.join(r[0] for r in c.exec_driver_sql('EXPLAIN '+str(q),q.params))
+    assert 'diagnoses_owner_created' in plan, plan
     assert store.get(rid)['id']==rid
     with store.engine.connect() as c: assert rid in store.get_many([rid], c)

@@ -3,6 +3,7 @@
 Nothing here contacts a provider at import time; clients are built lazily so a
 missing key degrades to an explicit abstention instead of a crash.
 """
+import functools
 import os
 
 
@@ -23,6 +24,13 @@ def embedding_dim():
 
 def openai_client(timeout=120, max_retries=1):
     if not os.getenv('OPENAI_API_KEY'): raise ValueError('OPENAI_API_KEY is not configured')
+    return _openai_client(timeout, max_retries)
+
+
+@functools.lru_cache(maxsize=8)
+def _openai_client(timeout, max_retries):
+    # One client per setting for the life of the instance: its connection pool keeps the TLS session to OpenAI,
+    # so the next call (an embedding, a follow-up question) does not open a new connection.
     from openai import OpenAI
     return OpenAI(timeout=timeout, max_retries=max_retries)
 

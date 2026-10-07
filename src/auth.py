@@ -44,8 +44,9 @@ def check_password(password: str, stored: str) -> bool:
         return False
 
 
-# Checked against when an email is unknown, so a failed login takes the same time either way.
-DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
+# Checked against when an email is unknown, so a failed login takes the same time either way. Random salt and key in
+# the stored format: checking it costs one full scrypt like a real hash, but building it costs nothing at start-up.
+DUMMY_HASH = f'scrypt${_N}${_R}${_P}${_b64(secrets.token_bytes(16))}${_b64(secrets.token_bytes(32))}'
 
 
 def new_token() -> str:

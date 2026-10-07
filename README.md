@@ -37,7 +37,7 @@
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -e ".[test]"
+python -m pip install -e ".[test,tools]"
 Copy-Item .env.example .env
 python scripts/create_reviewer.py reviewer-01
 python -m src.cli init-db

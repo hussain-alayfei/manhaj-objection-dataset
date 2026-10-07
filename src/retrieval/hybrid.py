@@ -159,7 +159,7 @@ class HybridRetriever:
         if self.encoder:
             qv = query_vector if query_vector is not None else self.encoder.encode([query])[0]
             allowed = {r['id']: r['version'] for r in candidates}
-            with self.store.engine.connect() as c:
+            with self.store.reader.connect() as c:
                 if self.store.engine.dialect.name == 'postgresql':
                     # Exact distance over current, metadata-filtered candidate IDs.
                     from sqlalchemy import bindparam
