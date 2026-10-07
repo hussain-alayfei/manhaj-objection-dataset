@@ -387,7 +387,7 @@ const listNow=()=>{const chat=$('#chat');return chat.classList.contains('list-fo
 document.addEventListener('pointerdown',e=>{
  const split=e.target.closest?.('.chat-split');if(!split||e.button!==0)return;
  e.preventDefault();split.setPointerCapture(e.pointerId);split.classList.add('dragging');document.body.classList.add('resizing');
- const at=ev=>$('#chat').getBoundingClientRect().right-ev.clientX; // the list sits on the right (start) side
+ const at=ev=>ev.clientX-$('#chat').getBoundingClientRect().left; // the list sits on the left (end) side
  const move=ev=>setListWidth(at(ev),false);
  const up=ev=>{split.classList.remove('dragging');document.body.classList.remove('resizing');for(const [t,f] of [['pointermove',move],['pointerup',up],['pointercancel',up]])split.removeEventListener(t,f);setListWidth(at(ev));};
  split.addEventListener('pointermove',move);split.addEventListener('pointerup',up);split.addEventListener('pointercancel',up);
@@ -395,7 +395,7 @@ document.addEventListener('pointerdown',e=>{
 document.addEventListener('dblclick',e=>{if(e.target.closest?.('.chat-split'))setListWidth(LIST_DEFAULT);});
 document.addEventListener('keydown',e=>{
  if(!e.target.closest?.('.chat-split'))return;
- if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const now=listNow();setListWidth(now===0?(e.key==='ArrowLeft'?LIST_MIN:0):now+(e.key==='ArrowLeft'?24:-24));}
+ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const wider=e.key==='ArrowRight',now=listNow();setListWidth(now===0?(wider?LIST_MIN:0):now+(wider?24:-24));}
  if(e.key==='Enter'||e.key===' '){e.preventDefault();setListWidth(listNow()?0:LIST_DEFAULT);}
 });
 const threadTop=open=>`<header class="thread-head"><button type="button" class="thread-list-btn" data-chat-list aria-label="قائمة التحليلات">${ICON_LIST}<span>التحليلات</span></button>${open?'<button type="button" class="thread-new-btn" data-chat-new>'+ICON_PLUS+'<span>تحليل جديد</span></button>':''}</header>`;
@@ -461,11 +461,11 @@ document.addEventListener('input',e=>{if(e.target.matches?.('.composer textarea'
 // Enter sends, Shift+Enter starts a new line (as in a chat)
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.target.matches?.('.composer textarea')){e.preventDefault();const f=e.target.form;if(e.target.value.trim())f.requestSubmit(f.querySelector('button.send'));}});
 // Tabs that open only after expert review say so plainly, with the progress so far and the next step.
-function gateHtml({heading,why,steps,s}){
+function gateHtml({heading,why,steps,s,note=''}){
  const approvedObjections=s.objections_approved??0,approvedRules=s.rules_approved??0;
  return `<section class="gate"><h3>${heading}</h3><p>${why}</p><ol>${steps.map(x=>`<li>${x}</li>`).join('')}</ol>
   <div class="gate-progress"><div><strong>${num(s.approved||0)}</strong><span>سجل معتمد</span></div><div><strong>${num(s.pending||0)}</strong><span>بانتظار المراجعة</span></div><div><strong>${num(approvedRules)}</strong><span>قاعدة معتمدة</span></div></div>
-  <button class="primary" data-go="review">ابدأ المراجعة</button></section>`;
+  <div class="gate-foot"><button class="primary" data-go="review">ابدأ المراجعة</button>${note?`<p>${note}</p>`:''}</div></section>`;
 }
 async function recordsView(){
  const seq=renderSeq;
@@ -475,7 +475,7 @@ async function recordsView(){
  let extra='';
  if(view==='external'&&!data.total&&!query&&!chosen){const s=await api('/summary');if(stale(seq))return;extra=gateHtml({s,heading:'شبهات من مواقع موثوقة خارج الكتاب',
   why:'تُجمع هنا شبهات شائعة من مواقع موثوقة، وتُحلَّل بمنهج الكتاب وتدخل المراجعة. ولا يبدأ جمعها قبل أن تُحكم شبهات الكتاب نفسه، لأنها الأساس الذي تُقاس عليه.',
-  steps:['يراجع المختصون شبهات الكتاب وقواعده ويعتمدون الصحيح منها.','يوثّق المسؤول اكتمال مراجعة الكتاب.','تُراجَع حقوق كل موقع قبل جمع نصوصه، ثم يبدأ الجمع.'],})+'<p class="lead-note">وإلى ذلك الحين يستعين كل تحليل بالمكتبة الشاملة وبمواقع موثوقة على الإنترنت.</p>';
+  steps:['يراجع المختصون شبهات الكتاب وقواعده ويعتمدون الصحيح منها.','يوثّق المسؤول اكتمال مراجعة الكتاب.','تُراجَع حقوق كل موقع قبل جمع نصوصه، ثم يبدأ الجمع.'],note:'وإلى ذلك الحين يستعين كل تحليل بالمكتبة الشاملة وبمواقع موثوقة على الإنترنت.'});
   $('#content').dataset.view=view;$('#content').innerHTML=title(titles[view],'لم تُضف شبهات من خارج الكتاب بعد.')+extra;return;}
  else if(view==='external')extra=!caps.heavy_jobs?'<p class="lead-note">يضيفها مسؤول المشروع من مصادر موثوقة، وتظهر هنا لتراجعها.</p>':`<div class="banner">يبدأ جمع الشبهات من مصادر أخرى بعد إنهاء مراجعة الكتاب كاملًا، وكل نتيجة تدخل قائمة المراجعة.</div><details class="card spaced"><summary>البحث في المصادر المسموح بها</summary><form id="research-form"><label for="research-topic">الموضوع</label><input id="research-topic" required><label for="research-limit">أقصى عدد من النتائج</label><input id="research-limit" type="number" min="1" max="50" value="5"><button class="primary spaced">ابحث</button></form><form id="gate-form"><label class="check"><input id="coverage-check" type="checkbox" required>أشهد بأن مراجعة جميع شبهات الكتاب وقواعده اكتملت.</label><label for="coverage-notes">ملاحظات المراجعة</label><textarea id="coverage-notes" required></textarea><button class="spaced">توثيق اكتمال مراجعة الكتاب</button></form></details>`;
  const actions=!caps.heavy_jobs?'':view==='families'?'<button data-action="families">اقترح مجموعات متشابهة</button>':view==='objections'?'<button data-action="duplicates">ابحث عن المكرر</button>':'';
@@ -855,6 +855,7 @@ function updateMethod(root,{animate=0}={}){
  panel.querySelectorAll('[data-conf]').forEach(i=>{i.style.width=i.dataset.conf+'%';});
  // a new step: the one read slides back and away, the next comes in from the side and its parts rise in
  if(animate&&old&&!calm()){
+  old.classList.remove('entering','to-next','to-prev'); // a window that came in animated must now play its way out, not in again
   old.classList.add('leaving',animate>0?'to-next':'to-prev');old.setAttribute('inert','');old.setAttribute('aria-hidden','true');
   setTimeout(()=>old.remove(),520);
   panel.classList.add('entering',animate>0?'to-next':'to-prev');
@@ -924,7 +925,7 @@ document.addEventListener('click',async e=>{
  if(b.id==='history-more')await refreshHistory(true);
  if(b.dataset.diag)await openAnalysis(b.dataset.diag);
  if(b.hasAttribute('data-chat-new'))await showThread(null);
- if(b.hasAttribute('data-chat-list')){const chat=$('#chat');if(chat?.classList.contains('list-folded')&&innerWidth>1180)setListWidth(LIST_DEFAULT);else chat?.classList.toggle('list-open');}
+ if(b.hasAttribute('data-chat-list')){const chat=$('#chat');if(chat?.classList.contains('list-folded')&&!matchMedia('(max-width:1280px)').matches)setListWidth(LIST_DEFAULT);else chat?.classList.toggle('list-open');}
  if(b.dataset.example){const t=$('#diagnose-text');if(t){t.value=b.dataset.example;fit(t);t.focus();}}
  if(b.dataset.deleteOne){const gone=b.dataset.deleteOne;if(await confirmBox({title:'حذف هذا التحليل؟',message:'سيُحذف من سجلك نهائيًا مع أسئلته، ولا يمكن استرجاعه.',confirm:'حذف',danger:true})){await api('/diagnoses/'+gone,{method:'DELETE'});closeDialog($('#editor'));notify('حُذف التحليل من سجلك.');if(gone===chatActive)await showThread(null);refreshHistory().catch(()=>{});}}
  if(b.dataset.fbVerdict){const holder=b.closest('[data-fb]');let note='';if(b.dataset.fbVerdict==='wrong'){const r=await confirmBox({title:'ما الخطأ في التحليل؟',message:'ملاحظتك تُحفظ مع التحليل ليراجعها المختصون.',confirm:'إرسال',input:'مثال: القاعدة لا تناسب الشبهة، أو التشخيص معكوس'});if(!r)return;note=r.value;}

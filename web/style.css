@@ -85,7 +85,7 @@ nav button.active span{color:var(--green)}
 .sidebar-foot{margin-top:auto;padding:18px 10px 0;border-top:1px solid var(--line)}
 
 /* Main column */
-main{margin-right:248px;padding:0 44px 64px}
+main{margin-right:248px;padding:0 44px 64px;overflow-x:clip} /* nothing moving inside may widen the page */
 main>header{height:80px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);font-size:13px;margin-bottom:26px;color:var(--muted)}
 main>header #breadcrumb{color:var(--ink)}
 .identity{display:flex;align-items:center;gap:10px;font-size:13px}
@@ -155,7 +155,7 @@ td button:hover{border-color:transparent;background:#164b3d1f}
 .empty{text-align:center;padding:48px;color:var(--muted)}
 .pagination{display:flex;align-items:center;justify-content:space-between;padding-top:16px;font-size:13px}
 
-.lead-note{color:var(--muted);font-size:14px;margin:-6px 0 18px}
+.lead-note{color:var(--muted);font-size:14px;margin:0 0 18px}
 .banner{border:1px solid #e3d7bb;background:#fbf5e8;padding:13px 18px;border-radius:var(--radius);color:#7a5c2b;margin-bottom:18px;font-size:13.5px}
 /* Notification banner in Apple's manner: thick frosted material, app icon, app name and time, the message.
    Slides down from the top, swipe up or tap × to dismiss. */
@@ -655,7 +655,7 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 
 @keyframes dot-done{50%{transform:scale(1.15)}}
 
-.stage{min-width:0;display:grid;grid-template-columns:minmax(0,1fr)}
+.stage{position:relative;min-width:0;display:grid;grid-template-columns:minmax(0,1fr)}
 .stage>.panel{grid-area:1/1;min-width:0}
 .panel-body{overflow-wrap:break-word}
 .panel{position:relative;background:var(--surface);border:1px solid #dfe6df;border-radius:16px;padding:26px 30px 16px;box-shadow:0 1px 2px #1c302c08,0 12px 32px #1c302c0d;overflow:hidden}
@@ -668,15 +668,15 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .panel-wait{display:flex;align-items:center;gap:12px;margin-top:12px;padding:20px 18px;border-radius:12px;background:#f7f8f4;color:var(--muted);font-size:14.5px}
 .panel-wait.live{color:var(--green-deep)}
 /* Moving on: the step read steps back and away to the right, the next one comes in from the left (and the reverse) */
-.panel.leaving{pointer-events:none;z-index:0;animation:panel-out .45s cubic-bezier(.4,0,.6,1) forwards}
+.panel.leaving{position:absolute;inset:0 0 auto 0;pointer-events:none;z-index:0;animation:panel-out .42s cubic-bezier(.4,0,.6,1) forwards}
 .panel.leaving.to-prev{animation-name:panel-out-prev}
 .panel.entering{z-index:1;animation:panel-in .62s cubic-bezier(.16,1,.3,1) .06s both}
 .panel.entering.to-prev{animation-name:panel-in-prev}
 .panel.entering .rise{animation:rise .6s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0)*45ms + 200ms)}
-@keyframes panel-out{to{opacity:0;transform:translateX(9%) scale(.93)}}
-@keyframes panel-out-prev{to{opacity:0;transform:translateX(-9%) scale(.93)}}
-@keyframes panel-in{from{opacity:0;transform:translateX(-11%) scale(.96)}}
-@keyframes panel-in-prev{from{opacity:0;transform:translateX(11%) scale(.96)}}
+@keyframes panel-out{to{opacity:0;transform:translateX(5%) scale(.95)}}
+@keyframes panel-out-prev{to{opacity:0;transform:translateX(-5%) scale(.95)}}
+@keyframes panel-in{from{opacity:0;transform:translateX(-6%) scale(.97)}}
+@keyframes panel-in-prev{from{opacity:0;transform:translateX(6%) scale(.97)}}
 .panel-nav{align-items:center}
 .panel-nav .primary{min-width:200px}
 .waiting-next{display:inline-flex;align-items:center;gap:10px;color:var(--muted);font-weight:400;background:#f7f8f4;border-color:transparent}
@@ -981,8 +981,9 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .m-web{margin:0;padding-inline-start:1.1rem;font-family:var(--ui);font-size:14px}
 
 /* A tab that opens after expert review: why, what opens it, how far along */
-.gate{max-width:760px;padding:28px 30px;border:1px solid #dfe6df;border-radius:16px;background:var(--surface);box-shadow:0 1px 2px #1c302c08,0 12px 32px #1c302c0d}
+.gate{padding:28px 30px;border:1px solid #dfe6df;border-radius:16px;background:var(--surface);box-shadow:0 1px 2px #1c302c08,0 12px 32px #1c302c0d}
 .gate h3{font-size:24px;color:var(--green-deep)}
+.gate>p,.gate ol{max-width:86ch}
 .gate>p{margin-top:6px;color:#3d4f48;line-height:1.9}
 .gate ol{margin:16px 0 0;padding-inline-start:1.3rem;display:grid;gap:6px;line-height:1.8}
 .gate-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:20px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -990,6 +991,8 @@ dialog.sheet{width:min(440px,92vw);border:0;border-radius:16px;padding:0;overflo
 .gate-progress div+div{border-inline-start:1px solid var(--line)}
 .gate-progress strong{font-family:var(--naskh);font-size:26px;color:var(--green);line-height:1.3}
 .gate-progress span{font-size:12.5px;color:var(--muted)}
+.gate-foot{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px}
+.gate-foot p{flex:1 1 260px;font-size:13.5px;line-height:1.8;color:var(--muted)}
 
 /* Notifications in the manner of Apple's: one frosted material, no outline, the icon as it is */
 #notice{position:fixed;inset:12px auto auto 50%;transform:translateX(-50%);margin:0;border:0;padding:9px 10px 9px 12px;width:min(340px,calc(100vw - 24px));
@@ -1104,11 +1107,11 @@ body.immersed .land-bar{transform:translateY(-100%)}
 
 
 /* ---------- Analyses as conversations: the list beside one open thread ---------- */
-.chat{display:grid;grid-template-columns:var(--list-w,250px) 15px minmax(0,1fr);column-gap:12px;align-items:start;margin-top:-10px}
+.chat{display:grid;grid-template-columns:minmax(0,1fr) 15px var(--list-w,250px);column-gap:12px;align-items:start;margin-top:-10px}
 .chat.list-folded{column-gap:0}
-.chat>.chat-list{grid-column:1;grid-row:1}
+.chat>.chat-list{grid-column:3;grid-row:1}
 .chat>.chat-split{grid-column:2;grid-row:1}
-.chat>.thread{grid-column:3;grid-row:1}
+.chat>.thread{grid-column:1;grid-row:1}
 .chat.list-folded .chat-list{display:none}
 .chat-split{position:sticky;top:16px;align-self:stretch;max-height:calc(100vh - 32px);display:flex;justify-content:center;cursor:col-resize;touch-action:none;border-radius:4px}
 .chat-split::before{content:'';width:1px;height:100%;background:var(--line);transition:background-color .2s ease,width .2s ease}
@@ -1119,7 +1122,7 @@ body.immersed .land-bar{transform:translateY(-100%)}
 .chat-split:focus-visible{outline:0}
 .chat.list-folded .thread-head{display:flex}
 body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
-.chat-list{position:sticky;top:16px;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 32px);padding-inline-end:4px}
+.chat-list{position:sticky;top:16px;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 32px)}
 .chat-new{display:flex;align-items:center;gap:8px;justify-content:flex-start;min-height:42px;padding:8px 14px;border-color:#d6ddd5;background:#fffefa}
 .chat-new svg{color:var(--green)}
 .chat-items{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;padding-bottom:8px}
@@ -1154,7 +1157,7 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 .thread-new{position:relative;isolation:isolate;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 24px 9vh}
 /* a scholar's desk in morning light (an open book, a reed pen and inkwell, a balance) fills the area beside the list
    from the header line to the page's foot; a soft veil keeps the middle quiet for the question */
-.thread-new::before{content:'';position:absolute;z-index:-1;inset:-16px -12px -64px -44px;
+.thread-new::before{content:'';position:absolute;z-index:-1;inset:-16px -44px -64px -12px;
   background:linear-gradient(var(--bg),#f6f5f000 9%),radial-gradient(ellipse 60% 64% at 50% 44%,#faf9f5f0 0%,#faf9f5c4 52%,#faf9f500 82%),url(/static/img/analyze-desk-2560.webp) center bottom/cover no-repeat}
 .thread-new img{margin-bottom:10px}
 .thread-new h2{font-size:34px;color:var(--green-deep)}
@@ -1214,7 +1217,7 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
 @keyframes glow-breathe{from{opacity:.32}to{opacity:.62}}
 @media(prefers-reduced-motion:reduce){.method.live .stage::before,.method.live .stage::after{animation:none}}
 
-@media(max-width:1180px){
+@media(max-width:1280px){
   .chat,.chat.list-folded{grid-template-columns:minmax(0,1fr);gap:0}
   .chat-split{display:none}
   .chat>.thread{grid-column:1}
@@ -1234,19 +1237,23 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none}
   .trail{grid-template-columns:repeat(12,96px);padding-bottom:2px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
 }
 
-/* A wide thread: the path stands at the left of the window as a list of the steps, the current one marked */
+/* A wide thread: the steps stand as a list at the right of the window, the current one marked; the question,
+   the verdict, the feedback, the follow-up questions and the box below all share the window's width */
 @container thread (min-width:1000px){
   .method-head,.method-body,.method+.feedback{max-width:none}
-  .method-body{grid-template-columns:minmax(0,1fr) 196px;column-gap:28px;row-gap:0;align-items:start}
-  .method-body>.stage{grid-column:1;grid-row:1}
-  .method-body>.trail{grid-column:2;grid-row:1;position:sticky;top:20px;display:flex;flex-direction:column;overflow:visible;padding:4px 0;-webkit-mask-image:none;mask-image:none}
+  .method-body{grid-template-columns:196px minmax(0,1fr);column-gap:28px;row-gap:0;align-items:start}
+  .method-body>.trail{grid-column:1;grid-row:1;position:sticky;top:20px;display:flex;flex-direction:column;overflow:visible;padding:4px 0;-webkit-mask-image:none;mask-image:none}
+  .method-body>.stage{grid-column:2;grid-row:1}
   .tstep{flex-direction:row;align-items:stretch;gap:12px;padding:0;text-align:right}
-  .tstep i{flex:none;width:3px;height:auto;margin:0;border-radius:0}
+  .tstep i{order:2;flex:none;width:3px;height:auto;margin:0;border-radius:0}
+  .tstep span{flex:1;padding:7px 0;font-size:13.5px;line-height:1.5}
   .tstep:first-child i{border-radius:2px 2px 0 0}
   .tstep:last-child i{border-radius:0 0 2px 2px}
   .tstep.current i{width:5px;height:auto;margin:0;border-radius:3px}
-  .tstep span{padding:7px 0;font-size:13.5px;line-height:1.5}
+  .thread-body>.msg.me,.method-head,.msg.bot.analysis>[data-after],.turns,.thread-foot{margin-inline-start:224px}
+  .turns,.thread-foot{width:auto}
 }
+
 @media(max-width:1100px){.thread-new::before{inset:-16px -24px -40px}}
 @media(max-width:760px){
   .thread-new{padding:16px 0 6vh}
